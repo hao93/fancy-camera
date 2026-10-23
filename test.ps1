@@ -89,6 +89,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Fast preview or histogram regression failed' }
 if ($LASTEXITCODE -ne 0) { throw 'Live preview regression failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses CompactControlsRegression
 if ($LASTEXITCODE -ne 0) { throw 'Compact control regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\ReelInteractionRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Production reel event test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses ReelInteractionRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Production reel touch, strength or accessibility regression failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses FilmWheelRegression
 if ($LASTEXITCODE -ne 0) { throw 'Film wheel regression failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses FrameFormatRegression
