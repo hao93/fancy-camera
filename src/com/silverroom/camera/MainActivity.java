@@ -40,14 +40,14 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
     final UpdateTrigger updateTrigger=new UpdateTrigger();AppUpdates updates;Dialog appSettings;TextView checkUpdateButton,blackThemeButton,whiteThemeButton;
     @Override public void onCreate(Bundle state){
         prefs=getSharedPreferences("silverroom",0);AppTheme.select(prefs.getInt(AppTheme.PREF,AppTheme.BLACK));Controls.theme();setTheme(ThemeUi.activityTheme());
-        super.onCreate(state);getWindow().setDecorFitsSystemWindows(false);ThemeUi.bars(getWindow());
+        super.onCreate(state);getWindow().setDecorFitsSystemWindows(false);
         settings.stock=prefs.getInt("stock",1);settings.cyan=prefs.getFloat("cyan",0);settings.magenta=prefs.getFloat("magenta",0);settings.yellow=prefs.getFloat("yellow",0);settings.grain=prefs.getFloat("grain",.2f);settings.fade=prefs.getFloat("fade",.1f);grid=prefs.getBoolean("grid",false);shots=prefs.getInt("shots",0);
         settings.strength=FilmStrength.clamp(prefs.getFloat("strength",1));settings.stock=FilmCatalog.safe(settings.stock);pinnedFilms=FilterShelf.parse(prefs.getString("film_pins",null),true);recentFilms=FilterShelf.parse(prefs.getString("film_recent",""),false);
         filmGroup=FilmGroups.safe(prefs.getInt("film_group",0));if(!groupContains(settings.stock))filmGroup=FilmGroups.family(settings.stock);
         frameFormat=FrameFormat.safe(prefs.getInt("frame_format",0));
         rollDir=new File(getFilesDir(),"negatives");rollDir.mkdirs();
         worker.execute(()->{NegativeStore.recover(rollDir);main.post(()->{if(!destroyed&&page==2)refreshGallery();});});
-        camera=new CameraEngine(this,this);camera.film=settings.copy();build();
+        camera=new CameraEngine(this,this);camera.film=settings.copy();build();ThemeUi.bars(getWindow());
         updates=new AppUpdates(this,new AppUpdates.Ui(){public boolean ready(){return updateUiReady();}public void checking(boolean active){if(checkUpdateButton!=null){checkUpdateButton.setText(active?"正在检查…":"检查升级");checkUpdateButton.setEnabled(!active);}}public void beforePrompt(){if(appSettings!=null)appSettings.dismiss();}});
         if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.CAMERA},1);
     }

@@ -13,8 +13,12 @@ final class ThemeUi {
     static int alertTheme(){return AppTheme.light()?android.R.style.Theme_Material_Light_Dialog_Alert:android.R.style.Theme_Material_Dialog_Alert;}
     static Context context(Context owner){return new ContextThemeWrapper(owner,activityTheme());}
     static void bars(Window window){
+        if(window==null)return;
+        // PhoneWindow.getInsetsController() dereferences mDecor before it is installed.
+        // getDecorView() installs it; the View accessor is safe before attachment.
+        View decor=window.getDecorView();
         window.setStatusBarColor(Controls.INK);window.setNavigationBarColor(Controls.INK);
-        WindowInsetsController controller=window.getInsetsController();if(controller!=null){int mask=WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS|WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;controller.setSystemBarsAppearance(AppTheme.light()?mask:0,mask);}
+        WindowInsetsController controller=decor.getWindowInsetsController();if(controller!=null){int mask=WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS|WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;controller.setSystemBarsAppearance(AppTheme.light()?mask:0,mask);}
     }
     static GradientDrawable surface(Context context,int fill,float radius,int stroke){return new Surface(fill,radius*context.getResources().getDisplayMetrics().density,stroke,context.getResources().getDisplayMetrics().density);}
     private static final class Surface extends GradientDrawable {
