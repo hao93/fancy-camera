@@ -9,7 +9,7 @@ import android.widget.*;
 import static com.silverroom.camera.Controls.*;
 
 final class PhotoViewer extends ThemedDialog {
-    interface Actions{void share(String id);void raw(String id);void edit(String id);void delete(String id);void load(PhotoViewer viewer,String id,long token);}
+    interface Actions{void share(String id);void raw(String id);void print(String id);void edit(String id);void delete(String id);void load(PhotoViewer viewer,String id,long token);}
     private final PhotoPager pager;private final Activity owner;private final Actions actions;private ZoomPhotoView photo;private TextView title,position,meta,rawButton;private boolean started;private String details="";
     PhotoViewer(Activity owner,java.util.List<String> ids,String selected,Actions actions){super(owner,ThemeUi.activityTheme());this.owner=owner;pager=new PhotoPager(ids,selected);this.actions=actions;}
     String currentId(){return pager.current();}
@@ -24,7 +24,7 @@ final class PhotoViewer extends ThemedDialog {
         meta=text("",11,MUTED);meta.setMaxLines(2);meta.setEllipsize(android.text.TextUtils.TruncateAt.END);meta.setContentDescription("拍摄参数，点击查看完整信息");meta.setOnClickListener(v->new AlertDialog.Builder(owner,ThemeUi.alertTheme()).setTitle("拍摄与配方参数").setMessage(details).setPositiveButton("完成",null).show());root.addView(meta,new LinearLayout.LayoutParams(-1,dp(48)));
         photo=new ZoomPhotoView(owner);photo.delete=()->actions.delete(currentId());photo.exit=this::dismiss;photo.navigate=this::navigate;root.addView(photo,new LinearLayout.LayoutParams(-1,0,1));
         TextView hint=text("左右切换 · 下滑返回 · 上滑移入回收站\n双指缩放，放大后拖动查看",10,MUTED);hint.setGravity(Gravity.CENTER);root.addView(hint,new LinearLayout.LayoutParams(-1,dp(42)));
-        LinearLayout tools=new LinearLayout(owner);String[] labels={"分享","DNG","再次显影","删除"};int[] colors={CREAM,CREAM,AMBER,tone(AppTheme.DANGER)};Runnable[] calls={()->actions.share(currentId()),()->actions.raw(currentId()),()->actions.edit(currentId()),()->actions.delete(currentId())};for(int i=0;i<4;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);if(i<3)lp.rightMargin=dp(6);TextView item=button(labels[i],colors[i],calls[i]);if(i==1){rawButton=item;item.setVisibility(View.GONE);}tools.addView(item,lp);}root.addView(tools);
+        LinearLayout tools=new LinearLayout(owner);String[] labels={"分享","DNG","显影","排版导出","删除"};int[] colors={CREAM,CREAM,AMBER,CREAM,tone(AppTheme.DANGER)};Runnable[] calls={()->actions.share(currentId()),()->actions.raw(currentId()),()->actions.edit(currentId()),()->actions.print(currentId()),()->actions.delete(currentId())};for(int i=0;i<5;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(48),1);if(i<4)lp.rightMargin=dp(6);TextView item=button(labels[i],colors[i],calls[i]);if(i==1){rawButton=item;item.setVisibility(View.GONE);}tools.addView(item,lp);}root.addView(tools);
         setContentView(root);window.setLayout(-1,-1);
     }
     @Override protected void onStart(){super.onStart();if(!started){started=true;showCurrent();}}

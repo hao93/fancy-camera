@@ -67,6 +67,16 @@ if ($LASTEXITCODE -ne 0) { throw 'Workflow regression compilation failed' }
 New-Item -ItemType Directory -Force (Join-Path $projectRoot 'build\expansion-tests') | Out-Null
 & "$jdkRoot\bin\java.exe" -cp $workflowClasspath com.silverroom.camera.ExpansionRegression "$projectRoot\build\expansion-tests"
 if ($LASTEXITCODE -ne 0) { throw 'Quality, RAW policy, recipe or recycle regression failed' }
+$printSources=@('ExposureLimits','FinderGesture','CompositionState','LevelMath','PrintOptions','PrintLayout','PrintMetadata','PrintRenderer','PrintBatch','GuideOverlay') | ForEach-Object { Join-Path $projectRoot "src\com\silverroom\camera\$_.java" }
+$printFakes=@('Bitmap','Paint','Canvas','RectF','Typeface') | ForEach-Object { Join-Path $projectRoot "tests\fakes\android\graphics\$_.java" }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses $printFakes $printSources "$projectRoot\tests\PrintExperienceRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Print experience test compilation failed' }
+& "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $workflowClasspath com.silverroom.camera.PrintExperienceRegression "$projectRoot\build\print-checks"
+if ($LASTEXITCODE -ne 0) { throw 'Exposure gesture, composition or print regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\FinderLifecycleRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Finder lifecycle test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses FinderLifecycleRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Production touch or level sensor lifecycle regression failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\RawLifecycleRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'RAW lifecycle test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses RawLifecycleRegression $projectRoot

@@ -1,6 +1,28 @@
-# Fancy Camera · Android 2.0.1
+# Fancy Camera · Android 2.1.0
 
 以彩色暗房和机械相机为灵感的摄影应用，使用原生 Java、Camera2 和 OpenGL ES 2.0。拍摄与暗房离线运行，无第三方库、应用账号或广告；联网仅用于读取和下载 GitHub Release 更新。
+
+## 2.1.0：曝光手势、印相导出与构图辅助
+
+取景支持轻点对焦、静止长按AE/AF锁定、按住上下拖动调曝光。纵向移动超过系统触摸阈值且明显大于横向移动时开始调整，向上提亮、向下压暗；约120dp对应1EV，拖动开始只对焦一次，锁定后拖动解除锁定。曝光手势和弹窗共用当前镜头公开补偿范围与步长，限制在±2EV内；未就绪或不支持时不发送拖动补偿。太阳/EV提示松手约1秒后隐藏，多指、取消、切换镜头、页面离开及后台终止手势，拍摄时不响应。边界处丢弃向外的多余距离，反向拖动立即生效。
+
+顶部网格按钮升级为构图辅助，点击设置、长按快速开关；设置 → 拍摄中也有入口。面板提供总开关、水平仪、中央十字和无/九宫格/黄金分割/对角线。新安装默认不显示辅助标记，升级保留原有网格开关；新增加的十字与水平仪默认关闭。长按恢复上次组合，没有可见项目时使用九宫格。水平仪优先重力传感器，无重力传感器时使用低通加速度；按实际横竖姿态映射，接近水平变金色，并以1°进入、1.5°退出的滞回减少闪动。接近平放或数据无效时隐藏，不伪报水平。只在前台取景且开启时监听，离开、关闭或详情遮挡时注销，最高约20次/秒绘制更新；辅助图形不进入照片管线。
+
+底片详情的“排版导出”和底片多选的“导出”打开同一面板，提供预览、逐张/接触印样、原图/极简白边/宽底白边，以及日期、焦段、胶片名开关。默认极简白边、信息全部开启，保存上次样式和信息选择；原图样式忽略文字开关，接触印样保留必要拼版间距。多选默认接触印样，单张默认逐张。照片按底片列表顺序固定，所有横竖照片完整适配，不拉伸或裁切。仅操作已显影JPEG副本，不重新应用胶片、不覆盖原片、内部成片或DNG，不自动给拍摄保存加边框。
+
+单张最终最长边不超过4096像素，不强行放大小图；接触印样固定2896×4096，三列三行，每页最多9张，最后一页保留未占用格位。日期独立一行，焦段和胶片名第二行，长名称按可用宽度省略；全部信息关闭后移除文字区。接触印样采用相对更大的文字比例以保证小格可读。预览与输出使用相同PrintLayout/PrintRenderer几何，只改变渲染尺寸。导出JPEG质量96，保存到Pictures/Silverroom/Exports，完成后可通过系统分享单个或多个输出。
+
+新照片在快门请求时记录captured_at和capture_offset_minutes；再次显影继承日期来源。导入照片读取原始EXIF拍摄日期，缺失则不使用导入/导出文件日期冒充。旧原生底片可从原编号日期回退；缺失焦段或胶片信息时省略，不使用相机当前选择。逐张输出继承可用ISO、快门、焦距、光圈、补偿、白平衡、设备和拍摄日期标签，并规范方向；接触印样不把某一张照片的参数写作整页参数。
+
+PrintOptions在提交预览或导出时冻结，预览使用独立任务序号丢弃过期结果。PrintRenderer逐个解码并释放源图；PrintBatch逐页提交，完成一个才计数。取消/关闭窗口或任意失败停止后续输出，保留已成功提交的文件，释放当前位图并删除未完成的相册项。导出期间阻止源底片删除、并发拍摄及其他保存任务。导出副本不进入底片列表，内部原文件保持不变。
+
+新图标为三色扁平矢量：奶油白#FFF4DE、青绿#226D66、暖金#F4BA53。提供自适应前景/背景与Android 13+单色层，启动图标和圆形图标同步。前景位于中心66dp安全圆内，不用文字、渐变、阴影或噪声。图标随系统主题图标设置使用单色层，普通图标保持明亮配色。
+
+697项Java回归检查通过，包括新增62项曝光/构图/排版/批次检查及16项真实FinderTouch/LevelController生命周期检查，四套实际GLSL与四套mediump兼容版本编译/链接通过。排版检查执行真实PrintRenderer/PrintBatch，使用仅测试目录的Java AWT绘图替身，覆盖横竖比例、原图/白边/宽底、缺失元数据、时区、1/9/10/多页、逐源解码释放、取消和写入失败，并生成合成色块测试图供目视检查；手势/传感器使用受控Android接口替身。另6项SVG图标检查和圆形/圆角/单色/32px预览检查通过。
+
+主机测试、合成图和SVG光栅化不能代替Android原生控件、字体、MediaStore写入、真实EXIF安装链路、vivo传感器精度或触控手感测试。本机无可用加速模拟器，本次未安装手机或进行真机操作。可选运行`node tests/IconAssetCheck.cjs`重现SVG检查，需要主机Node.js与sharp；不属于APK依赖。697项Java测试仍仅需要JDK与既有主机JSON依赖。
+
+完整说明见[2.1.0 Release说明](releases/2.1.0.md)。版本2.1.0 / code30，保留原包名、签名、底片和设置，推送源码并发布GitHub Release，不通过ADB安装。
 
 ## 2.0.1：居中拍摄布局与胶片强度合并
 
@@ -369,7 +391,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 
 `install.ps1`验证APK包名/原签名和本地配置中已配对手机的序列号/型号，再执行`adb install -r --no-incremental`，并回读安装版本。无线连接失败会保留APK并明确提示安装未确认，不能将构建完成当作安装成功。配置在相邻`adb-state/device.json`，设备地址变化时更新该文件；同目录配对密钥不得打入源码包。单独验证连接而不安装：`install.ps1 -Apk <APK路径> -VerifyOnly`。
 
-Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.0.1.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.0.1.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
+Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.1.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.1.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
 
 每次发布先递增Manifest的versionCode及versionName，编写`releases/<版本>.md`，然后执行默认标准构建。`publish.ps1`只提交源文件白名单，拒绝私钥/构建产物/配对状态，推送main与`v<版本>`标签，生成标准APK、更新清单及校验值。上传草稿后读取GitHub返回的资源大小和digest逐一核验，通过才公开Release。已公开版本不覆盖、标签不强推；有变化应增加版本。仓库配置位于`release.json`，App内固定更新源位于`UpdatePolicy.java`，两处必须一致。
 
