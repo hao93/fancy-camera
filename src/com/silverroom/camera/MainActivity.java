@@ -78,7 +78,9 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
         gap(panel,10);add(panel,text("外观",13,CREAM),-1,28);add(panel,text("选择你的相机界面 · 立即生效",11,MUTED),-1,28);
         LinearLayout appearance=row();blackThemeButton=button("",()->chooseTheme(AppTheme.BLACK));whiteThemeButton=button("",()->chooseTheme(AppTheme.WHITE));weight(appearance,blackThemeButton,54);LinearLayout.LayoutParams lightLayout=new LinearLayout.LayoutParams(0,dp(54),1);lightLayout.leftMargin=dp(10);appearance.addView(whiteThemeButton,lightLayout);add(panel,appearance,-1,54);refreshThemeButtons();
         gap(panel,20);String version="";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){}add(panel,text("Fancy Camera · "+version,12,MUTED),-1,36);
-        checkUpdateButton=button("检查升级",()->updates.check());checkUpdateButton.setTextColor(AMBER);add(panel,checkUpdateButton,-1,48);gap(panel,8);TextView hint=text("启动时自动检查 · 有新版才提示",11,MUTED);hint.setGravity(Gravity.CENTER);add(panel,hint,-1,32);
+        Switch startupCheck=new Switch(this);startupCheck.setText("启动时检查");startupCheck.setTextSize(13);startupCheck.setTextColor(CREAM);startupCheck.setShowText(false);startupCheck.setSwitchMinWidth(dp(42));startupCheck.setSwitchPadding(dp(12));startupCheck.setPadding(dp(14),0,dp(14),0);startupCheck.setBackground(bg(PANEL,12,0));ThemeUi.tintSwitch(startupCheck);startupCheck.setChecked(updates.automaticEnabled());startupCheck.setContentDescription("启动时检查新版本");add(panel,startupCheck,-1,52);
+        TextView startupHint=text(startupCheck.isChecked()?"打开 App 时自动检查更新":"已关闭自动检查，仍可手动检查",10,MUTED);add(panel,startupHint,-1,30);startupCheck.setOnCheckedChangeListener((control,on)->{prefs.edit().putBoolean(UpdateTrigger.PREF_AUTO_CHECK,on).apply();updates.automaticChanged();startupHint.setText(on?"打开 App 时自动检查更新":"已关闭自动检查，仍可手动检查");});gap(panel,6);
+        checkUpdateButton=button("检查升级",()->updates.check());checkUpdateButton.setTextColor(AMBER);add(panel,checkUpdateButton,-1,48);gap(panel,8);TextView hint=text("仅发现新版时提示下载与安装",11,MUTED);hint.setGravity(Gravity.CENTER);add(panel,hint,-1,32);
         opened.setContentView(panel);opened.getWindow().setBackgroundDrawableResource(android.R.color.transparent);opened.getWindow().setGravity(Gravity.BOTTOM);opened.getWindow().setLayout(-1,-2);appSettings=opened;opened.setOnDismissListener(d->{if(appSettings==opened){appSettings=null;checkUpdateButton=blackThemeButton=whiteThemeButton=null;}});opened.show();ThemeUi.bars(opened.getWindow());
     }
     void build(){
@@ -186,7 +188,7 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
         if(index==0&&resumed){camera.histogram(histogram);camera.resume();}if(index==1){refreshRoomControls();renderEdit();}if(index==2)refreshGallery();updateNav();
     }
     void updateNav(){for(int i=0;i<nav.getChildCount();i++){TextView t=(TextView)nav.getChildAt(i);t.setTextColor(i==page?AMBER:MUTED);t.setBackground(bg(i==page?PANEL:INK,10,0));}}
-    @Override protected void onStart(){super.onStart();if(updates!=null)updates.foreground(updateTrigger.enter());}
+    @Override protected void onStart(){super.onStart();if(updates!=null)updates.foreground(updateTrigger.enter(updates.automaticEnabled()));}
     @Override protected void onStop(){if(updates!=null)updates.background();updateTrigger.leave();super.onStop();}
     @Override public void startActivityForResult(Intent intent,int requestCode,Bundle options){updateTrigger.external();super.startActivityForResult(intent,requestCode,options);}
     @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus){ThemeUi.bars(getWindow());if(updates!=null)updates.flush();}}

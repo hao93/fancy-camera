@@ -12,6 +12,7 @@ final class ThemeUi {
     static int dialogTheme(){return AppTheme.light()?android.R.style.Theme_Material_Light_Dialog:android.R.style.Theme_Material_Dialog;}
     static int alertTheme(){return AppTheme.light()?android.R.style.Theme_Material_Light_Dialog_Alert:android.R.style.Theme_Material_Dialog_Alert;}
     static Context context(Context owner){return new ContextThemeWrapper(owner,activityTheme());}
+    static void tintSwitch(Switch control){control.setThumbTintList(new ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{Controls.AMBER,Controls.MUTED}));control.setTrackTintList(new ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{AppTheme.color(AppTheme.SELECT_BORDER),AppTheme.color(AppTheme.BORDER)}));}
     static void bars(Window window){
         if(window==null)return;
         // PhoneWindow.getInsetsController() dereferences mDecor before it is installed.
@@ -32,6 +33,7 @@ final class ThemeUi {
         Drawable background=view.getBackground();if(background instanceof Surface)((Surface)background).remap(from,to);else if(background instanceof ColorDrawable)((ColorDrawable)background).setColor(AppTheme.remap(((ColorDrawable)background).getColor(),from,to));
         if(view instanceof TextView){TextView text=(TextView)view;text.setTextColor(tint(text.getTextColors(),from,to));text.setHintTextColor(tint(text.getHintTextColors(),from,to));text.setHighlightColor(AppTheme.color(AppTheme.ACTIVE));}
         if(view instanceof SeekBar){SeekBar slider=(SeekBar)view;slider.setProgressTintList(ColorStateList.valueOf(Controls.AMBER));slider.setProgressBackgroundTintList(ColorStateList.valueOf(AppTheme.color(AppTheme.BORDER)));slider.setThumbTintList(ColorStateList.valueOf(Controls.CREAM));}
+        if(view instanceof Switch)tintSwitch((Switch)view);
         if(view instanceof Controls.Dial){Controls.Dial dial=(Controls.Dial)view;dial.accent=AppTheme.remap(dial.accent,from,to);}
         if(view instanceof ViewGroup){ViewGroup group=(ViewGroup)view;for(int i=0;i<group.getChildCount();i++)refresh(group.getChildAt(i),from,to);}
         view.invalidate();

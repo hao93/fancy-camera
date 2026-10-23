@@ -1,6 +1,12 @@
-# Fancy Camera · Android 1.20.1
+# Fancy Camera · Android 1.21.0
 
 以彩色暗房和机械相机为灵感的摄影应用，使用原生 Java、Camera2 和 OpenGL ES 2.0。拍摄与暗房离线运行，无第三方库、应用账号或广告；联网仅用于读取和下载 GitHub Release 更新。
+
+## 1.21.0：可关闭的启动检查
+
+设置中在“检查升级”上方新增“启动时检查”开关，与黑白主题同步配色并保存选择。默认开启，保持已有版本的行为。开启时在下次打开/返回App前台时检查，关闭时不发起自动检查；从相册和安装器返回仍沿用原有去重规则。切换开关本身不会发起网络请求，手动“检查升级”始终可用。没有新版或网络不可用仍然静默。
+
+关闭开关也会丢弃尚未提示的自动检查结果，包括已在途检查稍后返回的结果；手动检查的结果、用户已经确认的下载与安装不受影响。自动检查进行中点击手动检查会复用当前请求并按手动意图处理，避免重复联网。新增8项开关/生命周期/手动路径检查，共543项Java检查及四套GLSL、四套兼容精度程序编译/链接通过。保留1.20.1窗口初始化修复。
 
 ## 1.20.1：修复主题初始化引起的启动崩溃
 
@@ -301,7 +307,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 - 底片：查看、分享照片，或使用保留的底片再次显影。
 - 闪光：关 / 自动 / 开，取决于当前镜头支持情况。定时为 3 秒或 10 秒。
 - 镜头信息：长按顶部工具栏“画幅”按钮查看自动检测结果和失败原因，支持重新检测、复制诊断。
-- 外观与升级：点击底部右侧设置图标，在“黑色 / 白色”中切换界面并自动保存；“检查升级”无新版或网络不可用时不弹窗，启动时也会自动检查。
+- 外观与升级：点击底部右侧设置图标，在“黑色 / 白色”中切换界面并自动保存；“启动时检查”控制自动检查，默认开启，可关闭；关闭后仍可手动“检查升级”。无新版或网络不可用时不弹窗。
 
 面向 X100 Ultra 竖屏和长屏设计，处理状态栏、手势区域及挖孔安全区。最低 Android 11，目标 Android 15，纯 Java 字节码，可在 ARM64 安装。本版保留 1.0.1 的预览方向修复，避免重复叠加 SurfaceTexture 中的传感器旋转与前摄镜像。
 
@@ -319,7 +325,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 
 `install.ps1`验证APK包名/原签名和本地配置中已配对手机的序列号/型号，再执行`adb install -r --no-incremental`，并回读安装版本。无线连接失败会保留APK并明确提示安装未确认，不能将构建完成当作安装成功。配置在相邻`adb-state/device.json`，设备地址变化时更新该文件；同目录配对密钥不得打入源码包。单独验证连接而不安装：`install.ps1 -Apk <APK路径> -VerifyOnly`。
 
-Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-1.20.1.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-1.20.1.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
+Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-1.21.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-1.21.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
 
 每次发布先递增Manifest的versionCode及versionName，编写`releases/<版本>.md`，然后执行默认标准构建。`publish.ps1`只提交源文件白名单，拒绝私钥/构建产物/配对状态，推送main与`v<版本>`标签，生成标准APK、更新清单及校验值。上传草稿后读取GitHub返回的资源大小和digest逐一核验，通过才公开Release。已公开版本不覆盖、标签不强推；有变化应增加版本。仓库配置位于`release.json`，App内固定更新源位于`UpdatePolicy.java`，两处必须一致。
 

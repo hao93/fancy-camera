@@ -37,6 +37,14 @@ public final class UpdateRegression {
         trigger.resume();trigger.leave();check(trigger.enter(),"A later genuine opening checks after the external return was consumed");
         trigger.external();trigger.resume();trigger.leave();check(trigger.enter(),"An external overlay that never stopped the app cannot suppress the next genuine opening");
         trigger.leave();trigger.enter();check(!trigger.enter(),"Lens switches and internal tab changes need no additional lifecycle check");
+        check(UpdateTrigger.DEFAULT_AUTO_CHECK,"Existing installations keep startup checking enabled until the user changes the switch");
+        UpdateTrigger disabled=new UpdateTrigger();check(!disabled.enter(false),"A disabled startup switch suppresses the initial automatic request");
+        check(!disabled.enter(true),"Turning startup checking on does not initiate a check in the same opening");
+        disabled.leave();check(disabled.enter(true),"The next genuine opening checks after the switch is enabled");
+        disabled.external();disabled.leave();check(!disabled.enter(false)&&!disabled.enter(true),"Returning from an external activity still consumes its skip when startup checking is disabled");
+        disabled.resume();disabled.leave();check(disabled.enter(true),"External return bookkeeping cannot suppress a later enabled opening");
+        check(!UpdateTrigger.allowed(true,false)&&UpdateTrigger.allowed(false,false),"Disabling startup checking rejects automatic requests/results while preserving manual checks");
+        check(UpdateTrigger.allowed(true,true)&&UpdateTrigger.allowed(false,true),"Enabling startup checking allows both automatic and manual requests");
         File cache=new File(args[0]);cache.mkdirs();File pending=UpdatePolicy.pending(cache);check(pending.getName().equals("pending-update.apk")&&pending.getParentFile().getName().equals("updates"),"The provider exposes a fixed private APK path rather than caller-supplied paths");
         Files.write(pending.toPath(),new byte[]{'a','b','c'});check(UpdatePolicy.sha256(pending).equals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),"Downloaded bytes produce the standard SHA256 digest");
         Files.write(pending.toPath(),new byte[]{'a','b','d'});check(!UpdatePolicy.sha256(pending).equals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),"A one-byte change is detectable before requesting installation");

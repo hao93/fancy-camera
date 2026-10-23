@@ -20,14 +20,17 @@ final class AppUpdates {
     interface Ui {boolean ready();void checking(boolean active);void beforePrompt();}
     private final Activity owner;private final Ui ui;private final Handler main=new Handler(Looper.getMainLooper());private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private volatile boolean closed;private volatile HttpsURLConnection connection;private volatile int downloadEpoch;
-    private boolean foreground,checking,downloading,awaitingPermission,permissionLaunched,installReady,installing;private long offered=-1;private Info available;private AlertDialog dialog;private ProgressBar bar;
+    private boolean foreground,checking,checkingAutomatic,availableAutomatic,downloading,awaitingPermission,permissionLaunched,installReady,installing;private long offered=-1;private Info available;private AlertDialog dialog;private ProgressBar bar;
     private static final class Asset {final String url,name,digest;final long size;Asset(JSONObject j){url=j.optString("browser_download_url");name=j.optString("name");size=j.optLong("size");digest=j.optString("digest");}}
     private static final class Info {final long code,size;final String name,url,sha,notes;Info(long c,String n,String u,long s,String h,String body){code=c;name=n;url=u;size=s;sha=h;notes=body;}}
     AppUpdates(Activity a,Ui listener){owner=a;ui=listener;}
     long current()throws PackageManager.NameNotFoundException{return owner.getPackageManager().getPackageInfo(owner.getPackageName(),0).getLongVersionCode();}
-    void foreground(boolean automatic){foreground=true;installing=false;if(permissionLaunched){permissionLaunched=false;if(!owner.getPackageManager().canRequestPackageInstalls())awaitingPermission=false;}if(automatic){offered=-1;check();}flush();}
+    boolean automaticEnabled(){return owner.getSharedPreferences("silverroom",0).getBoolean(UpdateTrigger.PREF_AUTO_CHECK,UpdateTrigger.DEFAULT_AUTO_CHECK);}
+    void automaticChanged(){if(!automaticEnabled()&&availableAutomatic&&!downloading&&!installReady&&!awaitingPermission&&!installing)available=null;}
+    void foreground(boolean automatic){foreground=true;installing=false;if(permissionLaunched){permissionLaunched=false;if(!owner.getPackageManager().canRequestPackageInstalls())awaitingPermission=false;}if(automatic){offered=-1;request(true);}flush();}
     void background(){foreground=false;}
-    void check(){if(closed||checking||downloading||installing||awaitingPermission||installReady||!UpdatePolicy.PACKAGE.equals(owner.getPackageName()))return;offered=-1;checking=true;ui.checking(true);try{worker.execute(()->{Info found=null;try{found=latest();}catch(Exception ignored){}Info result=found;main.post(()->{if(closed)return;checking=false;ui.checking(false);available=result;flush();});});}catch(RejectedExecutionException ignored){checking=false;ui.checking(false);}}
+    void check(){request(false);}
+    private void request(boolean automatic){if(closed||downloading||installing||awaitingPermission||installReady||!UpdatePolicy.PACKAGE.equals(owner.getPackageName())||!UpdateTrigger.allowed(automatic,automaticEnabled()))return;if(checking){if(!automatic)checkingAutomatic=false;return;}offered=-1;checking=true;checkingAutomatic=automatic;ui.checking(true);try{worker.execute(()->{Info found=null;try{found=latest();}catch(Exception ignored){}Info result=found;main.post(()->{if(closed)return;boolean fromAutomatic=checkingAutomatic;checking=false;checkingAutomatic=false;ui.checking(false);availableAutomatic=fromAutomatic;available=UpdateTrigger.allowed(fromAutomatic,automaticEnabled())?result:null;flush();});});}catch(RejectedExecutionException ignored){checking=checkingAutomatic=false;ui.checking(false);}}
     private JSONObject json(String url,boolean api)throws Exception{HttpsURLConnection c=open(url,api);try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[8192];int n;while((n=in.read(buf))!=-1){if(closed||out.size()+n>1024*1024)throw new IOException("Metadata limit");out.write(buf,0,n);}return new JSONObject(new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8));}finally{c.disconnect();if(connection==c)connection=null;}}
     private HttpsURLConnection open(String address,boolean api)throws Exception{
         String next=address;for(int redirect=0;redirect<=5;redirect++){
@@ -49,6 +52,7 @@ final class AppUpdates {
         if(closed||installing||!foreground||!ui.ready())return;
         if(awaitingPermission){if(owner.getPackageManager().canRequestPackageInstalls()){awaitingPermission=false;install();}return;}
         if(installReady){install();return;}
+        if(!downloading&&availableAutomatic&&!automaticEnabled())available=null;
         if(available==null||downloading||offered==available.code||(dialog!=null&&dialog.isShowing()))return;
         try{if(available.code<=current()){available=null;return;}}catch(Exception e){return;}
         Info candidate=available;offered=candidate.code;ui.beforePrompt();dialog=new AlertDialog.Builder(owner,ThemeUi.alertTheme()).setTitle("发现新版本 "+candidate.name).setMessage((candidate.notes.isEmpty()?"更新 Fancy Camera，保留底片和设置。":candidate.notes)+"\n\n下载后由系统确认安装。").setNegativeButton("稍后",null).setPositiveButton("下载并安装",(d,w)->download(candidate)).create();dialog.show();
