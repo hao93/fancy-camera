@@ -1,4 +1,4 @@
-param([string]$ShaderValidator)
+param([string]$ShaderValidator,[string]$JsonJar)
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 $jdkRoot = $env:JAVA_HOME
@@ -9,6 +9,8 @@ $testClasses = Join-Path $projectRoot 'build\test-classes'
 New-Item -ItemType Directory -Force $testClasses | Out-Null
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\YuvFrames.java" "$projectRoot\src\com\silverroom\camera\CameraHandoff.java" "$projectRoot\src\com\silverroom\camera\YuvGeometry.java" "$projectRoot\src\com\silverroom\camera\CameraShaders.java" "$projectRoot\src\com\silverroom\camera\CaptureOrientation.java" "$projectRoot\src\com\silverroom\camera\FilmGrain.java" "$projectRoot\src\com\silverroom\camera\FilmCatalog.java" "$projectRoot\src\com\silverroom\camera\FilmGroups.java" "$projectRoot\src\com\silverroom\camera\FilterShelf.java" "$projectRoot\tests\OpticalPolicyTest.java" "$projectRoot\tests\PipelineRegression.java" "$projectRoot\tests\PhotoFeaturesRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\PreviewQuality.java" "$projectRoot\src\com\silverroom\camera\ImageQuality.java" "$projectRoot\src\com\silverroom\camera\FrameFormat.java"
+if ($LASTEXITCODE -ne 0) { throw 'Quality helper compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\RotaryGesture.java" "$projectRoot\src\com\silverroom\camera\PreviewFraming.java" "$projectRoot\tests\InteractionRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Interaction test compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\FrameFormat.java" "$projectRoot\tests\FrameFormatRegression.java"
@@ -57,6 +59,18 @@ if ($LASTEXITCODE -ne 0) { throw 'Theme contrast, repeat switching or export iso
 if ($LASTEXITCODE -ne 0) { throw 'Window lifecycle test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses WindowLifecycleRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Production theme window cold-start or attachment regression failed' }
+if (-not $JsonJar) { $JsonJar=Join-Path (Split-Path $projectRoot -Parent) 'toolchain\json\json-20240303.jar' }
+if (-not (Test-Path -LiteralPath $JsonJar)) { throw 'Host JSON tests need JSON-Java 20240303; pass -JsonJar. This dependency is not part of the APK.' }
+$workflowClasspath="$testClasses;$JsonJar"
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\src\com\silverroom\camera\SettingsCodec.java" "$projectRoot\src\com\silverroom\camera\RecipeStore.java" "$projectRoot\src\com\silverroom\camera\CaptureInfo.java" "$projectRoot\src\com\silverroom\camera\RawPolicy.java" "$projectRoot\src\com\silverroom\camera\NegativeStore.java" "$projectRoot\src\com\silverroom\camera\NegativeTrash.java" "$projectRoot\tests\ExpansionRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Workflow regression compilation failed' }
+New-Item -ItemType Directory -Force (Join-Path $projectRoot 'build\expansion-tests') | Out-Null
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath com.silverroom.camera.ExpansionRegression "$projectRoot\build\expansion-tests"
+if ($LASTEXITCODE -ne 0) { throw 'Quality, RAW policy, recipe or recycle regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\RawLifecycleRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'RAW lifecycle test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses RawLifecycleRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Production RAW transaction lifecycle regression failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\PreviewQuality.java" "$projectRoot\tests\PreviewQualityRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Preview detail test compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\NegativeStore.java" "$projectRoot\src\com\silverroom\camera\NegativeSelection.java" "$projectRoot\src\com\silverroom\camera\PhotoViewport.java" "$projectRoot\src\com\silverroom\camera\PhotoBrowseGesture.java" "$projectRoot\tests\GalleryRegression.java"

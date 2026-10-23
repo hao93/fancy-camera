@@ -32,7 +32,7 @@ final class Controls {
         final Paint p=new Paint(3);float value;
         ExposureButton(Context c){super(c);setClickable(true);setFocusable(true);set(0);}
         void set(float ev){value=ExposureValue.clamp(ev);setContentDescription("曝光补偿 "+ExposureValue.label(value)+" EV，点击调整");invalidate();}
-        @Override protected void onDraw(Canvas c){float sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f;p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("monospace",Typeface.NORMAL));p.setTextSize(sp*22);p.setColor(value==0?CREAM:AMBER);c.drawText(ExposureValue.label(value),cx,cy,p);p.setTextSize(sp*10);p.setColor(MUTED);c.drawText("EV",cx,cy+sp*21,p);}
+        @Override protected void onDraw(Canvas c){float sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f;p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("monospace",Typeface.NORMAL));p.setTextSize(sp*22);p.setColor(value==0?CREAM:AMBER);c.drawText(ExposureValue.label(value),cx,cy-sp*4,p);p.setTextSize(sp*10);p.setColor(MUTED);c.drawText("EV",cx,cy+sp*14,p);}
         @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.Button");}
     }
     static class Dial extends View {

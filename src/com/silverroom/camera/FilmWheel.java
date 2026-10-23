@@ -14,7 +14,8 @@ class FilmWheel extends View {
     interface Listener {void selected(int id);}
     final FilmWheelState state=new FilmWheelState();private final Paint paint=new Paint(3);
     private ValueAnimator animator;private VelocityTracker velocity;private int pointer=-1,notified=1;
-    private float lastX,downX,downY;private boolean dragged;Listener listener;
+    private float lastX,downX,downY,visual=Float.NaN;private boolean dragged;private long lastHaptic;Listener listener;
+    private final Runnable held=()->{if(pointer>=0&&!dragged&&isLongClickable()){performLongClick();releaseTouch();}};
     FilmWheel(Context c){super(c);setFocusable(true);setClickable(true);setLayerType(View.LAYER_TYPE_SOFTWARE,null);}
     private float dp(float n){return n*getResources().getDisplayMetrics().density;}
     private float sp(float n){return n*getResources().getDisplayMetrics().scaledDensity;}
@@ -26,15 +27,15 @@ class FilmWheel extends View {
     String category(){return "胶片";}
     boolean compact(){return false;}
     int legalTarget(int target){return Math.max(0,Math.min(state.count()-1,target));}
-    void tapped(int target){cancelAnimation();update(legalTarget(target));}
+    void tapped(int target){float start=Float.isFinite(visual)?visual:state.position();cancelAnimation();int end=legalTarget(target);if(end<0)return;update(end);if(Math.abs(start-end)<.01f)return;visual=start;animator=ValueAnimator.ofFloat(start,end);animator.setDuration(180);animator.setInterpolator(new DecelerateInterpolator(2));animator.addUpdateListener(a->{visual=(float)a.getAnimatedValue();invalidate();});animator.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator a){visual=Float.NaN;invalidate();}});animator.start();}
     boolean moving(){return pointer>=0||(animator!=null&&animator.isRunning());}
     void films(List<Integer> ids,int selected){cancelAnimation();releaseTouch();state.reset(ids,selected);notified=state.selected();describe();invalidate();}
     private void describe(){setContentDescription(category()+"滚轮，当前"+(compact()?title(state.selected()):FilmCatalog.NAMES[state.selected()])+"，"+subtitle(state.selected())+"，左右滑动或点击切换");}
-    private void update(float position){if(position<0)return;state.position(position);int selected=state.selected();if(selected!=notified&&available(selected)){notified=selected;describe();performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);if(listener!=null)listener.selected(selected);sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);}invalidate();}
-    private void cancelAnimation(){if(animator!=null){animator.cancel();animator=null;}}
+    private void update(float position){if(position<0)return;state.position(position);int selected=state.selected();if(selected!=notified&&available(selected)){notified=selected;describe();long now=android.os.SystemClock.uptimeMillis();if(now-lastHaptic>=35){lastHaptic=now;performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);}if(listener!=null)listener.selected(selected);sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);}invalidate();}
+    private void cancelAnimation(){if(animator!=null){animator.cancel();animator=null;}visual=Float.NaN;}
     private void settle(int target){target=legalTarget(target);cancelAnimation();if(target<0)return;float start=state.position();if(Math.abs(target-start)<.001f){update(target);return;}animator=ValueAnimator.ofFloat(start,target);animator.setDuration(Math.min(420,180+Math.round(Math.abs(target-start)*70)));animator.setInterpolator(new DecelerateInterpolator(2));animator.addUpdateListener(a->update((float)a.getAnimatedValue()));animator.start();}
     void finish(){cancelAnimation();releaseTouch();update(legalTarget(state.index()));}
-    private void releaseTouch(){pointer=-1;if(velocity!=null){velocity.recycle();velocity=null;}if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(false);}
+    private void releaseTouch(){removeCallbacks(held);pointer=-1;if(velocity!=null){velocity.recycle();velocity=null;}if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(false);}
     @Override public void setEnabled(boolean enabled){if(!enabled&&state!=null)finish();super.setEnabled(enabled);invalidate();}
     @Override protected void onDetachedFromWindow(){cancelAnimation();releaseTouch();super.onDetachedFromWindow();}
     @Override protected void onDraw(Canvas c){
@@ -42,7 +43,7 @@ class FilmWheel extends View {
         float half=dp(compact()?22:25);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);paint.setStyle(Paint.Style.FILL);
         for(int i=0;i<state.count();i++){
-            float distance=i-state.position(),x=cx+distance*slot;if(x< -slot||x>getWidth()+slot)continue;
+            float distance=i-(Float.isFinite(visual)?visual:state.position()),x=cx+distance*slot;if(x< -slot||x>getWidth()+slot)continue;
             float depth=Math.min(1.8f,Math.abs(distance)),scale=1-depth*.19f;int id=state.id(i);int alpha=Math.round((1-Math.min(.82f,depth*.43f))*(isEnabled()&&available(id)?255:75));boolean selected=i==state.index()&&available(id);
             c.save();c.translate(x,cy+dp(depth*2));c.scale(scale,scale);c.clipRect(-slot*.48f,-dp(28),slot*.48f,dp(28));
             if(!compact()){paint.setColor(color(id));paint.setAlpha(alpha);c.drawRoundRect(-dp(11),-dp(19),dp(11),-dp(16),dp(1.5f),dp(1.5f),paint);}
@@ -55,7 +56,7 @@ class FilmWheel extends View {
     }
     @Override public boolean onTouchEvent(MotionEvent e){
         if(!isEnabled())return false;int action=e.getActionMasked();
-        if(action==MotionEvent.ACTION_DOWN){cancelAnimation();releaseTouch();pointer=e.getPointerId(0);lastX=downX=e.getX();downY=e.getY();dragged=false;velocity=VelocityTracker.obtain();velocity.addMovement(e);if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(true);return true;}
+        if(action==MotionEvent.ACTION_DOWN){cancelAnimation();releaseTouch();pointer=e.getPointerId(0);lastX=downX=e.getX();downY=e.getY();dragged=false;velocity=VelocityTracker.obtain();velocity.addMovement(e);if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(true);if(isLongClickable())postDelayed(held,ViewConfiguration.getLongPressTimeout());return true;}
         if(pointer<0)return true;if(velocity!=null)velocity.addMovement(e);
         if(action==MotionEvent.ACTION_MOVE){int index=e.findPointerIndex(pointer);if(index<0)return true;float x=e.getX(index);if(!dragged&&Math.hypot(x-downX,e.getY(index)-downY)>ViewConfiguration.get(getContext()).getScaledTouchSlop())dragged=true;if(dragged)update(state.position()+(lastX-x)/pitch());lastX=x;return true;}
         if(action==MotionEvent.ACTION_UP){int target=state.index();if(!dragged){target=Math.round(state.position()+(e.getX()-getWidth()/2f)/pitch());performClick();releaseTouch();tapped(Math.max(0,Math.min(state.count()-1,target)));}else{if(velocity!=null){velocity.computeCurrentVelocity(1000);target=state.target(-velocity.getXVelocity(pointer)/pitch());}releaseTouch();settle(target);}return true;}

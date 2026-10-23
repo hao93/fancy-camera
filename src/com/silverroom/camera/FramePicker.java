@@ -20,7 +20,7 @@ final class FramePicker extends ThemedDialog {
         super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);
         LinearLayout root=new LinearLayout(owner);root.setOrientation(1);root.setPadding(dp(18),dp(10),dp(18),dp(18));root.setBackground(bg(INK,0));
         View handle=new View(owner);handle.setBackground(bg(MUTED,0));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(dp(32),dp(3));hp.gravity=Gravity.CENTER;hp.bottomMargin=dp(10);root.addView(handle,hp);
-        LinearLayout head=new LinearLayout(owner);head.setGravity(Gravity.CENTER_VERTICAL);head.addView(text("选择画幅",21,CREAM),new LinearLayout.LayoutParams(0,dp(44),1));TextView close=text("完成",13,AMBER);close.setGravity(Gravity.CENTER);head.addView(close,new LinearLayout.LayoutParams(dp(52),dp(44)));close.setOnClickListener(v->dismiss());root.addView(head);
+        LinearLayout head=new LinearLayout(owner);head.setGravity(Gravity.CENTER_VERTICAL);head.addView(text("选择画幅",21,CREAM),new LinearLayout.LayoutParams(0,dp(48),1));TextView close=text("完成",13,AMBER);close.setGravity(Gravity.CENTER);head.addView(close,new LinearLayout.LayoutParams(dp(52),dp(48)));close.setOnClickListener(v->dismiss());root.addView(head);
         TextView subtitle=text("取景框与成片同步 · 横拍自动交换长宽",11,MUTED);root.addView(subtitle,new LinearLayout.LayoutParams(-1,dp(28)));
         ScrollView scroll=new ScrollView(owner);scroll.setFillViewport(false);LinearLayout list=new LinearLayout(owner);list.setOrientation(1);scroll.addView(list);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         for(int i=0;i<FrameFormat.LABELS.length;i++){

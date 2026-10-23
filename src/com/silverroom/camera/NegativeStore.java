@@ -8,7 +8,7 @@ import java.util.*;
 public final class NegativeStore {
     private NegativeStore(){}
     public static boolean valid(String id){return id!=null&&id.matches("[0-9]{8}_[0-9]{6}_[0-9]{3}");}
-    private static String[] names(String id){return new String[]{id+"_original.jpg",id+".jpg",id+".json"};}
+    static String[] names(String id){return new String[]{id+"_original.jpg",id+".jpg",id+".json",id+".dng"};}
     private static File child(File root,String name)throws IOException{File f=new File(root,name);if(Files.isSymbolicLink(f.toPath())||!root.getCanonicalFile().equals(f.getCanonicalFile().getParentFile())||(f.exists()&&!f.isFile()))throw new IOException("Invalid negative component");return f;}
     public static List<String> list(File root){List<String> ids=new ArrayList<>();File[] files=root.listFiles();if(files!=null)for(File f:files){String n=f.getName();if(n.endsWith(".json")){String id=n.substring(0,n.length()-5);if(valid(id)&&f.isFile()&&!Files.isSymbolicLink(f.toPath()))ids.add(id);}}Collections.sort(ids,Collections.reverseOrder());return ids;}
     public static synchronized boolean delete(File folder,String id)throws IOException{
