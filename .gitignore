@@ -1,0 +1,13 @@
+/build/
+*.apk
+*.dex
+*.class
+*.p12
+*.jks
+*.keystore
+*.local.*
+.DS_Store
+adb-state/
+toolchain/
+local.properties
+*.log

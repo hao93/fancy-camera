@@ -1,0 +1,264 @@
+package com.silverroom.camera;
+
+import android.Manifest;
+import android.app.*;
+import android.content.*;
+import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
+import android.graphics.*;
+import android.graphics.drawable.*;
+import android.net.Uri;
+import android.os.*;
+import android.media.ExifInterface;
+import android.provider.MediaStore;
+import android.view.*;
+import android.widget.*;
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.concurrent.*;
+import org.json.*;
+import static com.silverroom.camera.Controls.*;
+
+public final class MainActivity extends Activity implements CameraEngine.Listener {
+    final Handler main=new Handler(Looper.getMainLooper());final ExecutorService worker=Executors.newSingleThreadExecutor();
+    Film.Settings settings=new Film.Settings();CameraEngine camera;LinearLayout root,body,nav,cameraPage,darkPage,galleryPage;
+    TextView status,frameCount,countdown,saveButton,roomLabel;ImageView darkImage;Controls.Shutter shutter;Controls.Guides guides;
+    Controls.ToolButton flashButton,gridButton,timerButton,frameButton;Controls.ExposureButton evButton;FilmWheel filmWheel;LensWheel lensWheel;
+    List<Integer> pinnedFilms=new ArrayList<>(),recentFilms=new ArrayList<>();TextView roomStockButton,strengthButton,roomStrengthButton,lockButton;StrengthPicker activeStrengthPicker;FavoritesPicker activeFavoritesPicker;
+    FrameLayout finderStage,finder;int frameFormat;FrameFormat.Snapshot shotFrame;float editAspect;
+    FilmPicker activeFilmPicker;
+    HistogramView histogram;
+    HistogramPicker activeHistogramPicker;
+    PhotoViewer activePhotoViewer;final ExecutorService thumbs=Executors.newFixedThreadPool(2);volatile int galleryVersion;
+    final NegativeSelection selectedNegatives=new NegativeSelection();List<String> galleryIds=new ArrayList<>();boolean selectingNegatives,deletingNegatives;
+    final Map<String,LinearLayout> negativeCells=new HashMap<>();final Map<String,TextView> negativeMarks=new HashMap<>();
+    TextView galleryTitle,gallerySelect,galleryNote,galleryAll,galleryDelete;LinearLayout galleryActions;ScrollView galleryScroll;
+    FilmShelfButton filmGroupButton;int filmGroup;
+    int page,flash,timer,shots,editVersion;float focal=23,cameraEv;boolean resumed,grid,destroyed;volatile boolean busy,processing,exporting;File rollDir,editOriginal;Bitmap editBase;String editId;Film.Settings shotSettings;long captureToken;
+    SharedPreferences prefs;final int IMPORT=100;final float[] FOCALS={14,23,35,50,85,135,230};
+    final UpdateTrigger updateTrigger=new UpdateTrigger();AppUpdates updates;Dialog appSettings;TextView checkUpdateButton;
+    @Override public void onCreate(Bundle state){
+        super.onCreate(state);getWindow().setStatusBarColor(INK);getWindow().setNavigationBarColor(INK);getWindow().setDecorFitsSystemWindows(false);getWindow().getDecorView().setSystemUiVisibility(0);
+        prefs=getSharedPreferences("silverroom",0);settings.stock=prefs.getInt("stock",1);settings.cyan=prefs.getFloat("cyan",0);settings.magenta=prefs.getFloat("magenta",0);settings.yellow=prefs.getFloat("yellow",0);settings.grain=prefs.getFloat("grain",.2f);settings.fade=prefs.getFloat("fade",.1f);grid=prefs.getBoolean("grid",false);shots=prefs.getInt("shots",0);
+        settings.strength=FilmStrength.clamp(prefs.getFloat("strength",1));settings.stock=FilmCatalog.safe(settings.stock);pinnedFilms=FilterShelf.parse(prefs.getString("film_pins",null),true);recentFilms=FilterShelf.parse(prefs.getString("film_recent",""),false);
+        filmGroup=FilmGroups.safe(prefs.getInt("film_group",0));if(!groupContains(settings.stock))filmGroup=FilmGroups.family(settings.stock);
+        frameFormat=FrameFormat.safe(prefs.getInt("frame_format",0));
+        rollDir=new File(getFilesDir(),"negatives");rollDir.mkdirs();
+        worker.execute(()->{NegativeStore.recover(rollDir);main.post(()->{if(!destroyed&&page==2)refreshGallery();});});
+        camera=new CameraEngine(this,this);camera.film=settings.copy();build();
+        updates=new AppUpdates(this,new AppUpdates.Ui(){public boolean ready(){return updateUiReady();}public void checking(boolean active){if(checkUpdateButton!=null){checkUpdateButton.setText(active?"正在检查…":"检查升级");checkUpdateButton.setEnabled(!active);}}public void beforePrompt(){if(appSettings!=null)appSettings.dismiss();}});
+        if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.CAMERA},1);
+    }
+    int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
+    TextView text(String value,float size,int color){TextView t=new TextView(this);t.setText(value);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);t.setFontFeatureSettings("tnum");t.setIncludeFontPadding(false);return t;}
+    TextView button(String value,Runnable action){TextView t=text(value,12,CREAM);t.setGravity(Gravity.CENTER);t.setMinHeight(dp(44));t.setPadding(dp(10),dp(4),dp(10),dp(4));t.setBackground(bg(PANEL,12,0));t.setOnClickListener(v->{v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);action.run();});t.setContentDescription(value);t.setFocusable(true);return t;}
+    void refreshTools(){flashButton.state(flash!=0,flash==1?"A":"","闪光灯，"+new String[]{"关闭","自动","开启"}[flash]);gridButton.state(grid,"","九宫格，"+(grid?"开启":"关闭"));timerButton.state(timer!=0,timer==0?"":timer+"s","定时拍摄，"+(timer==0?"关闭":timer+"秒"));frameButton.state(false,FrameFormat.LABELS[frameFormat],"画幅，"+FrameFormat.LABELS[frameFormat]+"，点击选择，长按查看镜头诊断");}
+    void addTool(LinearLayout tools,View t,boolean last){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(44),1);if(!last)lp.rightMargin=dp(6);tools.addView(t,lp);}
+    GradientDrawable bg(int color,int radius,int stroke){GradientDrawable b=new GradientDrawable();b.setColor(color);b.setCornerRadius(dp(radius));if(stroke!=0)b.setStroke(dp(1),stroke);return b;}
+    LinearLayout column(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
+    LinearLayout row(){LinearLayout l=new LinearLayout(this);l.setOrientation(0);l.setGravity(Gravity.CENTER_VERTICAL);return l;}
+    void add(LinearLayout l,View v,int w,int h){l.addView(v,new LinearLayout.LayoutParams(w<0?w:dp(w),h<0?h:dp(h)));}
+    void weight(LinearLayout l,View v,int h){l.addView(v,new LinearLayout.LayoutParams(0,h<0?h:dp(h),1));}
+    void gap(LinearLayout l,int height){add(l,new View(this),1,height);}
+    boolean updateUiReady(){return resumed&&!destroyed&&!busy&&!exporting&&!isFinishing()&&(hasWindowFocus()||(appSettings!=null&&appSettings.isShowing()))&&(activeFilmPicker==null||!activeFilmPicker.isShowing())&&(activePhotoViewer==null||!activePhotoViewer.isShowing())&&(activeStrengthPicker==null||!activeStrengthPicker.isShowing())&&(activeFavoritesPicker==null||!activeFavoritesPicker.isShowing())&&(activeHistogramPicker==null||!activeHistogramPicker.isShowing());}
+    void showAppSettings(){if(busy||updates==null)return;if(appSettings!=null&&appSettings.isShowing())return;Dialog opened=new Dialog(this);opened.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout panel=column();panel.setPadding(dp(20),dp(14),dp(20),dp(24));panel.setBackground(bg(INK,20,0));LinearLayout head=row();TextView title=text("Fancy Camera",20,CREAM);head.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));add(head,button("完成",opened::dismiss),60,44);add(panel,head,-1,44);String version="";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){}add(panel,text("当前版本 "+version,12,MUTED),-1,36);checkUpdateButton=button("检查升级",()->updates.check());checkUpdateButton.setTextColor(AMBER);add(panel,checkUpdateButton,-1,48);gap(panel,8);TextView hint=text("启动时自动检查 · 有新版才提示",11,MUTED);hint.setGravity(Gravity.CENTER);add(panel,hint,-1,32);opened.setContentView(panel);opened.getWindow().setBackgroundDrawableResource(android.R.color.transparent);opened.getWindow().setGravity(Gravity.BOTTOM);opened.getWindow().setLayout(-1,-2);appSettings=opened;opened.setOnDismissListener(d->{if(appSettings==opened){appSettings=null;checkUpdateButton=null;}});opened.show();}
+    void build(){
+        root=column();root.setBackgroundColor(INK);root.setPadding(dp(12),dp(6),dp(12),0);root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets i=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(dp(12)+i.left,dp(6)+i.top,dp(12)+i.right,i.bottom);return insets;});setContentView(root);
+        body=column();root.addView(body,new LinearLayout.LayoutParams(-1,0,1));buildCamera();buildDarkroom();galleryPage=column();galleryPage.setVisibility(View.GONE);body.addView(galleryPage,new LinearLayout.LayoutParams(-1,-1));
+        nav=row();nav.setPadding(0,dp(4),0,dp(4));String[] names={"取景","暗房","底片"};for(int i=0;i<3;i++){final int index=i;TextView n=button(names[i],()->switchPage(index));n.setTextSize(12);weight(nav,n,44);}TextView appMenu=button("⚙",this::showAppSettings);appMenu.setTextSize(19);appMenu.setContentDescription("应用设置和检查升级");add(nav,appMenu,44,44);add(root,nav,-1,52);updateNav();
+    }
+    void buildCamera(){
+        cameraPage=column();body.addView(cameraPage,new LinearLayout.LayoutParams(-1,-1));
+        LinearLayout tools=row();flashButton=new Controls.ToolButton(this,Controls.ToolButton.FLASH);flashButton.setOnClickListener(v->{if(!busy){flash=(flash+1)%3;refreshTools();camera.flash(flash);v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);}});addTool(tools,flashButton,false);
+        gridButton=new Controls.ToolButton(this,Controls.ToolButton.GRID);gridButton.setOnClickListener(v->{grid=!grid;guides.grid=grid;guides.invalidate();refreshTools();persist();v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);});addTool(tools,gridButton,false);
+        timerButton=new Controls.ToolButton(this,Controls.ToolButton.TIMER);timerButton.setOnClickListener(v->{if(!busy){timer=timer==0?3:timer==3?10:0;refreshTools();v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);}});addTool(tools,timerButton,false);
+        frameButton=new Controls.ToolButton(this,Controls.ToolButton.FRAME);frameButton.setOnClickListener(v->{v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);showFrames();});frameButton.setOnLongClickListener(v->{showInfo();return true;});addTool(tools,frameButton,true);refreshTools();add(cameraPage,tools,-1,44);gap(cameraPage,8);
+        finderStage=new FrameLayout(this);finderStage.setBackgroundColor(INK);cameraPage.addView(finderStage,new LinearLayout.LayoutParams(-1,0,1));
+        finder=new FrameLayout(this);finder.setBackground(bg(0xff090c0a,6,0xff34392f));finderStage.addView(finder,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));
+        finderStage.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->updateFrameLayout());
+        // A chosen format owns the actual viewport, so its edges match the saved crop.
+        finder.addView(camera.view,new FrameLayout.LayoutParams(-1,-1));guides=new Controls.Guides(this);guides.grid=grid;finder.addView(guides,new FrameLayout.LayoutParams(-1,-1));
+        GestureDetector focusGesture=new GestureDetector(this,new GestureDetector.SimpleOnGestureListener(){public boolean onDown(MotionEvent e){return true;}public boolean onSingleTapUp(MotionEvent e){if(!busy){camera.focus(e.getX()/guides.getWidth(),e.getY()/guides.getHeight());guides.focus(e.getX(),e.getY());guides.performClick();}return true;}public void onLongPress(MotionEvent e){if(!busy){guides.focus(e.getX(),e.getY());guides.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);camera.lockMetering(e.getX()/guides.getWidth(),e.getY()/guides.getHeight());}}});
+        guides.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);guides.setContentDescription("取景画面，点击对焦，长按锁定对焦和曝光");guides.setOnLongClickListener(v->{if(!busy){guides.focus(guides.getWidth()/2f,guides.getHeight()/2f);camera.lockMetering(.5f,.5f);}return true;});
+        guides.setOnTouchListener(new View.OnTouchListener(){boolean multi;public boolean onTouch(View v,MotionEvent e){if(e.getActionMasked()==MotionEvent.ACTION_DOWN)multi=false;if(e.getPointerCount()>1){multi=true;MotionEvent cancel=MotionEvent.obtain(e);cancel.setAction(MotionEvent.ACTION_CANCEL);focusGesture.onTouchEvent(cancel);cancel.recycle();}if(!multi)focusGesture.onTouchEvent(e);return true;}});
+        lockButton=button("",()->{if(!busy)camera.unlockMetering();});lockButton.setTextColor(AMBER);lockButton.setVisibility(View.GONE);lockButton.setContentDescription("解除对焦和曝光锁定");FrameLayout.LayoutParams lockLayout=new FrameLayout.LayoutParams(-2,dp(40),Gravity.TOP|Gravity.CENTER_HORIZONTAL);lockLayout.topMargin=dp(10);finder.addView(lockButton,lockLayout);
+        countdown=text("",48,CREAM);countdown.setTypeface(Typeface.MONOSPACE);countdown.setGravity(Gravity.CENTER);finder.addView(countdown,new FrameLayout.LayoutParams(-1,-1));countdown.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        status=text("等待相机 · 请允许相机权限",9,CREAM);status.setMaxLines(1);status.setEllipsize(android.text.TextUtils.TruncateAt.END);status.setPadding(dp(10),dp(4),dp(10),dp(4));status.setBackgroundColor(0x770a100d);FrameLayout.LayoutParams slp=new FrameLayout.LayoutParams(-1,dp(28),Gravity.BOTTOM);finder.addView(status,slp);
+        lensWheel=new LensWheel(this);lensWheel.listener=id->selectFocal(LensWheel.MM[id]);lensWheel.blocked=mm->toast(mm+"mm 所需的光学镜头当前未开放或不可用");add(cameraPage,lensWheel,-1,56);refreshLensButtons();
+        LinearLayout filmShelf=row();filmGroupButton=new FilmShelfButton(this,false);filmGroupButton.setOnClickListener(v->showFilmGroups());LinearLayout.LayoutParams flp=new LinearLayout.LayoutParams(dp(44),dp(44));flp.rightMargin=dp(8);filmShelf.addView(filmGroupButton,flp);filmWheel=new FilmWheel(this);filmWheel.listener=id->{if(!busy)applyStock(id,false);};filmShelf.addView(filmWheel,new LinearLayout.LayoutParams(0,dp(74),1));FilmShelfButton more=new FilmShelfButton(this,true);more.setOnClickListener(v->{v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);showFilms();});LinearLayout shortcuts=column();shortcuts.setGravity(Gravity.CENTER);shortcuts.addView(more,new LinearLayout.LayoutParams(dp(44),dp(44)));strengthButton=button(FilmStrength.percent(settings.strength)+"%",this::showStrength);strengthButton.setTextSize(10);strengthButton.setTextColor(AMBER);strengthButton.setMinHeight(0);strengthButton.setPadding(0,0,0,0);shortcuts.addView(strengthButton,new LinearLayout.LayoutParams(dp(44),dp(28)));filmShelf.addView(shortcuts,new LinearLayout.LayoutParams(dp(52),dp(74)));add(cameraPage,filmShelf,-1,74);
+        LinearLayout controls=row();controls.setGravity(Gravity.CENTER);evButton=new Controls.ExposureButton(this);evButton.setOnClickListener(v->showExposure());add(controls,evButton,86,86);
+        LinearLayout shutterCol=column();shutterCol.setGravity(Gravity.CENTER);shutter=new Controls.Shutter(this);shutter.setOnClickListener(v->capture());add(shutterCol,shutter,90,90);controls.addView(shutterCol,new LinearLayout.LayoutParams(0,dp(100),1));
+        LinearLayout right=column();right.setGravity(Gravity.CENTER);histogram=new HistogramView(this);histogram.setOnClickListener(v->showHistogram());add(right,histogram,86,60);frameCount=text(String.format(Locale.US,"%03d",shots),9,MUTED);frameCount.setTypeface(Typeface.MONOSPACE);frameCount.setGravity(Gravity.CENTER);add(right,frameCount,86,20);add(controls,right,86,86);add(cameraPage,controls,-1,100);setStock(settings.stock);
+    }
+    void updateFrameLayout(){
+        if(finderStage==null||finder==null||finderStage.getWidth()<=0||finderStage.getHeight()<=0)return;
+        int[] size=FrameFormat.fit(frameFormat,finderStage.getWidth(),finderStage.getHeight());FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)finder.getLayoutParams();
+        if(lp.width!=size[0]||lp.height!=size[1]){lp.width=size[0];lp.height=size[1];finder.setLayoutParams(lp);}
+    }
+    void showFrames(){if(busy){toast("请等待拍摄或显影完成");return;}filmWheel.finish();lensWheel.finish();new FramePicker(this,frameFormat,id->{if(busy)return;frameFormat=id;camera.unlockMetering();refreshTools();updateFrameLayout();camera.refreshFilm();persist();}).show();}
+    void showExposure(){if(busy){toast("请等待拍摄或显影完成");return;}filmWheel.finish();lensWheel.finish();new ExposurePicker(this,cameraEv,v->{cameraEv=v;evButton.set(v);camera.exposure(v);}).show();}
+    boolean groupContains(int id){return filmGroup==FilmGroups.FAVORITES?pinnedFilms.contains(id):FilmGroups.contains(filmGroup,id);}
+    void refreshStrength(){String label=FilmStrength.percent(settings.strength)+"%";if(strengthButton!=null){strengthButton.setText(label);strengthButton.setContentDescription("胶片强度 "+label+"，点击调整");}if(roomStrengthButton!=null)roomStrengthButton.setText("胶片强度 · "+label);}
+    void showStrength(){if(busy)return;if(activeStrengthPicker!=null&&activeStrengthPicker.isShowing())return;filmWheel.finish();lensWheel.finish();StrengthPicker opened=new StrengthPicker(this,FilmCatalog.NAMES[settings.stock],settings.strength,value->{settings.strength=value;syncFilm();});activeStrengthPicker=opened;opened.setOnDismissListener(d->{if(activeStrengthPicker==opened)activeStrengthPicker=null;});opened.show();}
+    void updatePins(List<Integer> ids){pinnedFilms=FilterShelf.parse(FilterShelf.encode(ids),true);if(filmGroup==FilmGroups.FAVORITES){if(pinnedFilms.isEmpty())filmGroup=FilmGroups.ALL;else if(!pinnedFilms.contains(settings.stock)){setStock(pinnedFilms.get(0));return;}}refreshStockButtons();persist();}
+    void showFavorites(){if(busy)return;if(activeFavoritesPicker!=null&&activeFavoritesPicker.isShowing())return;FavoritesPicker opened=new FavoritesPicker(this,pinnedFilms,this::updatePins);activeFavoritesPicker=opened;opened.setOnDismissListener(d->{if(activeFavoritesPicker==opened)activeFavoritesPicker=null;});opened.show();}
+    @Override public void metering(int state,String reason){main.post(()->{if(destroyed)return;boolean active=state!=MeteringLock.IDLE;guides.lock(active);lockButton.setVisibility(active?View.VISIBLE:View.GONE);lockButton.setText(state==MeteringLock.LOCKED?"AE/AF 已锁定  ×":"AE/AF 锁定中…  ×");lockButton.setContentDescription((state==MeteringLock.LOCKED?"对焦和曝光已锁定":"正在锁定对焦和曝光")+"，点击解除");if(!reason.isEmpty())toast(reason);});}
+    void showHistogram(){if(busy){toast("请等待拍摄或显影完成");return;}if(activeHistogramPicker!=null&&activeHistogramPicker.isShowing())return;filmWheel.finish();lensWheel.finish();histogram.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);HistogramPicker opened=new HistogramPicker(this,histogram,FilmCatalog.NAMES[settings.stock]);activeHistogramPicker=opened;opened.setOnDismissListener(d->{if(activeHistogramPicker==opened)activeHistogramPicker=null;});opened.show();}
+    void selectFocal(float mm){if(busy)return;if(!camera.available(mm)){toast((int)mm+"mm 需要 "+LensPlan.base(mm)+"mm 光学镜头，当前未开放或不可用");return;}camera.focal(mm);}
+    @Override public void lensesChanged(){main.post(this::refreshLensButtons);}
+    void refreshLensButtons(){if(camera==null||lensWheel==null)return;focal=camera.focal();boolean[] available=new boolean[FOCALS.length];String[] labels=new String[FOCALS.length];int actual=1;for(int i=0;i<FOCALS.length;i++){float mm=FOCALS[i];available[i]=!busy&&camera.available(mm);String kind=mm==14?"超广":mm==23?"主摄":mm==85?"长焦":mm<85?"主裁":"长裁";labels[i]=camera.front()?"后置":!camera.scanned()?"检测中":camera.available(mm)?kind:camera.unavailableLabel(mm);if(mm==focal)actual=i;}lensWheel.availability(available,labels,actual,camera.front()||busy);}
+    void setStock(int index){applyStock(index,true);}
+    void applyStock(int index,boolean align){settings.stock=FilmCatalog.safe(index);if(!groupContains(settings.stock))filmGroup=FilmGroups.family(settings.stock);recentFilms=FilterShelf.remember(recentFilms,settings.stock);prefs.edit().putInt("film_group_last_"+FilmGroups.family(settings.stock),settings.stock).putInt("film_group_last_"+filmGroup,settings.stock).apply();if(align)refreshStockButtons();if(roomStockButton!=null)roomStockButton.setText(Film.NAMES[settings.stock]+"  ▾");syncFilm();}
+    void refreshStockButtons(){if(filmWheel!=null){filmWheel.films(FilmGroups.ids(filmGroup,pinnedFilms),settings.stock);filmGroupButton.group(filmGroup);}}
+    void showFilmGroups(){if(busy){toast("请等待拍摄或显影完成");return;}filmWheel.finish();lensWheel.finish();filmGroupButton.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);PopupMenu menu=new PopupMenu(this,filmGroupButton);for(int n=0;n<FilmGroups.LABELS.length;n++){int i=n==0?FilmGroups.FAVORITES:n-1;menu.getMenu().add(0,i,n,FilmGroups.LABELS[i]+" · "+FilmGroups.ids(i,pinnedFilms).size()+" 款").setCheckable(true).setChecked(i==filmGroup);}menu.getMenu().add(1,100,100,"管理收藏排序");menu.getMenu().setGroupCheckable(0,true,true);menu.setOnMenuItemClickListener(item->{if(busy)return true;if(item.getItemId()==100){showFavorites();return true;}if(item.getItemId()==FilmGroups.FAVORITES&&pinnedFilms.isEmpty()){showFavorites();return true;}filmGroup=item.getItemId();int remembered=prefs.getInt("film_group_last_"+filmGroup,-1);setStock(FilmGroups.choose(filmGroup,settings.stock,remembered,pinnedFilms));return true;});menu.show();}
+    void showFilms(){if(busy){toast("请等待拍摄或显影完成");return;}if(activeFilmPicker!=null&&activeFilmPicker.isShowing())return;filmWheel.finish();lensWheel.finish();Film.Settings comparison=settings.copy();if(page==0)comparison.exposure=0;FilmPicker opened=new FilmPicker(this,settings.stock,pinnedFilms,recentFilms,new FilmPicker.Listener(){public void choose(int id){setStock(id);}public void pinsChanged(List<Integer> ids){updatePins(ids);}},page==0?camera:null,page==1?editBase:null,comparison);activeFilmPicker=opened;opened.setOnDismissListener(d->{if(activeFilmPicker==opened)activeFilmPicker=null;});opened.show();}
+    void syncFilm(){refreshStrength();Film.Settings live=settings.copy();live.exposure=0;camera.film=live;camera.refreshFilm();persist();if(page==1&&editBase!=null)renderEdit();}
+    void persist(){prefs.edit().putInt("stock",settings.stock).putFloat("strength",settings.strength).putInt("film_group",filmGroup).putInt("frame_format",frameFormat).putFloat("cyan",settings.cyan).putFloat("magenta",settings.magenta).putFloat("yellow",settings.yellow).putFloat("grain",settings.grain).putFloat("fade",settings.fade).putBoolean("grid",grid).putInt("shots",shots).putString("film_pins",FilterShelf.encode(pinnedFilms)).putString("film_recent",FilterShelf.encode(recentFilms)).apply();}
+    void capture(){
+        if(busy)return;if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.CAMERA},1);return;}
+        if(finder.getWidth()<=0||finder.getHeight()<=0||finder.isLayoutRequested()){toast("正在调整取景框，请稍候");return;}
+        lensWheel.finish();filmWheel.setEnabled(false);busy=true;refreshLensButtons();processing=false;shutter.busy=true;shutter.invalidate();shotSettings=settings.copy();shotSettings.exposure=0;shotFrame=new FrameFormat.Snapshot(frameFormat,finder.getWidth(),finder.getHeight());long token=++captureToken;shutter.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        if(timer>0)tick(timer,token);else camera.shoot();main.postDelayed(()->{if(busy&&!processing&&captureToken==token){resetShutter();toast("拍摄超时，请重试");}},(timer+18)*1000L);
+    }
+    void tick(int n,long token){if(token!=captureToken||!busy)return;if(n<=0){countdown.setText("");camera.shoot();return;}countdown.setText(String.valueOf(n));main.postDelayed(()->tick(n-1,token),1000);}
+    void resetShutter(){busy=false;processing=false;filmWheel.setEnabled(true);refreshLensButtons();countdown.setText("");countdown.setTextSize(48);shutter.busy=false;shutter.invalidate();if(updates!=null)updates.flush();}
+    @Override public void status(String s){main.post(()->status.setText(s));}
+    @Override public void error(String s){main.post(()->{resetShutter();status.setText(s);toast(s);});}
+    @Override public void picture(CameraEngine.Shot shot){
+        processing=true;final Film.Settings film=shotSettings==null?settings.copy():shotSettings.copy();final FrameFormat.Snapshot framing=shotFrame;final float photoAspect=framing==null?0:framing.outputAspect(shot.orientation.device);final String lens=shot.lens+(framing==null?"":" · "+FrameFormat.LABELS[framing.format]+"画幅");main.post(()->{busy=true;shutter.busy=true;shutter.invalidate();countdown.setText("显影中");countdown.setTextSize(22);});
+        worker.execute(()->{
+            try{String id=new SimpleDateFormat("yyyyMMdd_HHmmss_SSS",Locale.US).format(new Date());File original=new File(rollDir,id+"_original.jpg");try(FileOutputStream o=new FileOutputStream(original)){o.write(shot.jpeg);}
+                Bitmap source=decode(original,4096);
+                if(shot.clockwise!=0){android.graphics.Matrix rotate=new android.graphics.Matrix();rotate.postRotate(shot.clockwise);Bitmap upright=Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),rotate,true);if(upright!=source)source.recycle();source=upright;}
+                if(shot.crop>1.001f){int[] size=LensPlan.cropSize(source.getWidth(),source.getHeight(),shot.crop);Bitmap cropped=Bitmap.createBitmap(source,(source.getWidth()-size[0])/2,(source.getHeight()-size[1])/2,size[0],size[1]);if(cropped!=source)source.recycle();source=cropped;}
+                writeJpeg(source,original,shot.orientation);
+                source=cropFrame(source,photoAspect);Bitmap developed=Film.develop(source,film);source.recycle();File local=new File(rollDir,id+".jpg");writeJpeg(developed,local,shot.orientation);writeMeta(id,Uri.EMPTY,film,lens,shot.orientation,photoAspect);Uri uri=saveMedia(developed,id,shot.orientation);developed.recycle();writeMeta(id,uri,film,lens,shot.orientation,photoAspect);
+                main.post(()->{shots++;persist();frameCount.setText(String.format(Locale.US,"%03d",shots));resetShutter();countdown.setTextSize(48);toast("已显影并保存到相册 · Silverroom");});
+            }catch(Throwable e){main.post(()->{resetShutter();toast("保存失败，底片可能已保留："+e.getMessage());});}
+        });
+    }
+    Bitmap decode(File file,int max) throws IOException{return ImageDecoder.decodeBitmap(ImageDecoder.createSource(file),(d,info,src)->{d.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);int w=info.getSize().getWidth(),h=info.getSize().getHeight();if(Math.max(w,h)>max){float scale=max/(float)Math.max(w,h);d.setTargetSize(Math.round(w*scale),Math.round(h*scale));}});}
+    Bitmap cropFrame(Bitmap source,float aspect){int[] r=FrameFormat.crop(source.getWidth(),source.getHeight(),aspect);if(r[2]==source.getWidth()&&r[3]==source.getHeight())return source;Bitmap out=Bitmap.createBitmap(source,r[0],r[1],r[2],r[3]);if(out!=source)source.recycle();return out;}
+    void writeJpeg(Bitmap b,File f)throws IOException{writeJpeg(b,f,null);}
+    void writeJpeg(Bitmap b,File f,CaptureOrientation.Snapshot pose)throws IOException{try(FileOutputStream out=new FileOutputStream(f)){if(!b.compress(Bitmap.CompressFormat.JPEG,96,out))throw new IOException("JPEG 编码失败");}normalizedExif(new ExifInterface(f.getAbsolutePath()),pose);}
+    void normalizedExif(ExifInterface exif,CaptureOrientation.Snapshot pose)throws IOException{
+        exif.setAttribute(ExifInterface.TAG_ORIENTATION,String.valueOf(ExifInterface.ORIENTATION_NORMAL));exif.setAttribute(ExifInterface.TAG_SOFTWARE,"Fancy Camera");
+        exif.setAttribute(ExifInterface.TAG_USER_COMMENT,pose==null?"Fancy Camera; pixels_upright=true":pose.comment());exif.saveAttributes();
+    }
+    Uri saveMedia(Bitmap bitmap,String name)throws IOException{return saveMedia(bitmap,name,null);}
+    Uri saveMedia(Bitmap bitmap,String name,CaptureOrientation.Snapshot pose)throws IOException{
+        ContentValues values=new ContentValues();values.put(MediaStore.Images.Media.DISPLAY_NAME,"SR_"+name+".jpg");values.put(MediaStore.Images.Media.MIME_TYPE,"image/jpeg");values.put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/Silverroom");values.put(MediaStore.Images.Media.IS_PENDING,1);
+        Uri uri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);if(uri==null)throw new IOException("无法创建相册文件");
+        try{try(OutputStream os=getContentResolver().openOutputStream(uri)){if(os==null||!bitmap.compress(Bitmap.CompressFormat.JPEG,96,os))throw new IOException("无法写入照片");}
+            try(ParcelFileDescriptor fd=getContentResolver().openFileDescriptor(uri,"rw")){if(fd==null)throw new IOException("无法写入照片方向");normalizedExif(new ExifInterface(fd.getFileDescriptor()),pose);}
+            values.clear();values.put(MediaStore.Images.Media.IS_PENDING,0);values.put(MediaStore.Images.Media.WIDTH,bitmap.getWidth());values.put(MediaStore.Images.Media.HEIGHT,bitmap.getHeight());values.put(MediaStore.Images.Media.ORIENTATION,0);getContentResolver().update(uri,values,null,null);return uri;
+        }catch(IOException e){getContentResolver().delete(uri,null,null);throw e;}
+    }
+    void writeMeta(String id,Uri uri,Film.Settings s)throws Exception{writeMeta(id,uri,s,"");}
+    void writeMeta(String id,Uri uri,Film.Settings s,String lens)throws Exception{writeMeta(id,uri,s,lens,null);}
+    void writeMeta(String id,Uri uri,Film.Settings s,String lens,CaptureOrientation.Snapshot pose)throws Exception{writeMeta(id,uri,s,lens,pose,0);}
+    void writeMeta(String id,Uri uri,Film.Settings s,String lens,CaptureOrientation.Snapshot pose,float aspect)throws Exception{JSONObject j=new JSONObject();j.put("uri",uri.toString());j.put("stock",s.stock);j.put("strength",FilmStrength.clamp(s.strength));j.put("cyan",s.cyan);j.put("magenta",s.magenta);j.put("yellow",s.yellow);j.put("grain",s.grain);j.put("fade",s.fade);j.put("exposure",s.exposure);j.put("lens",lens);j.put("frame_aspect",aspect);j.put("pixels_upright",true);if(pose!=null){j.put("device_degrees",pose.device);j.put("sensor_degrees",pose.sensor);j.put("capture_rotation",pose.rotation);j.put("front",pose.front);}try(FileWriter w=new FileWriter(new File(rollDir,id+".json"))){w.write(j.toString());}}
+    CaptureOrientation.Snapshot readPose(String id){if(id==null)return null;JSONObject j=readMeta(id);return j.has("device_degrees")?new CaptureOrientation.Snapshot(j.optInt("sensor_degrees",90),j.optInt("device_degrees",0),j.optBoolean("front",false)):null;}
+    JSONObject readMeta(String id){try{return new JSONObject(new String(java.nio.file.Files.readAllBytes(new File(rollDir,id+".json").toPath()),java.nio.charset.StandardCharsets.UTF_8));}catch(Exception e){return new JSONObject();}}
+    void toast(String s){if(!destroyed)Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
+    void switchPage(int index){
+        if(index==page)return;if(busy){toast("正在拍摄或显影，请稍候");return;}if(page==2)galleryVersion++;filmWheel.finish();lensWheel.finish();if(page==0&&resumed){camera.removeHistogram(histogram);camera.pause();}page=index;
+        cameraPage.setVisibility(index==0?View.VISIBLE:View.GONE);darkPage.setVisibility(index==1?View.VISIBLE:View.GONE);galleryPage.setVisibility(index==2?View.VISIBLE:View.GONE);
+        if(index==0&&resumed){camera.histogram(histogram);camera.resume();}if(index==1){refreshRoomControls();renderEdit();}if(index==2)refreshGallery();updateNav();
+    }
+    void updateNav(){for(int i=0;i<nav.getChildCount();i++){TextView t=(TextView)nav.getChildAt(i);t.setTextColor(i==page?AMBER:MUTED);t.setBackground(bg(i==page?PANEL:INK,10,0));}}
+    @Override protected void onStart(){super.onStart();if(updates!=null)updates.foreground(updateTrigger.enter());}
+    @Override protected void onStop(){if(updates!=null)updates.background();updateTrigger.leave();super.onStop();}
+    @Override public void startActivityForResult(Intent intent,int requestCode,Bundle options){updateTrigger.external();super.startActivityForResult(intent,requestCode,options);}
+    @Override public void onWindowFocusChanged(boolean focus){super.onWindowFocusChanged(focus);if(focus&&updates!=null)updates.flush();}
+    @Override protected void onResume(){super.onResume();updateTrigger.resume();resumed=true;if(page==0){camera.histogram(histogram);camera.resume();}if(updates!=null)updates.flush();}
+    @Override protected void onPause(){if(appSettings!=null)appSettings.dismiss();if(activeFilmPicker!=null)activeFilmPicker.dismiss();if(activeStrengthPicker!=null)activeStrengthPicker.dismiss();if(activeFavoritesPicker!=null)activeFavoritesPicker.dismiss();if(activeHistogramPicker!=null)activeHistogramPicker.dismiss();filmWheel.finish();lensWheel.finish();resumed=false;if(page==0){camera.removeHistogram(histogram);camera.pause();}if(busy&&countdown.getText().length()>0&&!countdown.getText().equals("显影中")){captureToken++;resetShutter();}super.onPause();}
+    @Override protected void onDestroy(){destroyed=true;if(updates!=null)updates.close();galleryVersion++;if(activePhotoViewer!=null)activePhotoViewer.dismiss();thumbs.shutdownNow();camera.destroy();worker.shutdown();super.onDestroy();}
+    @Override public void onRequestPermissionsResult(int r,String[] p,int[] g){super.onRequestPermissionsResult(r,p,g);if(g.length>0&&g[0]==PackageManager.PERMISSION_GRANTED)camera.permission();else{status.setText("相机权限未开启 · 暗房仍可导入照片");toast("可在系统设置中允许相机权限");}}
+    @Override public void onBackPressed(){if(page==2&&selectingNegatives){selectingNegatives=false;selectedNegatives.clear();refreshNegativeSelection();}else if(page!=0)switchPage(0);else super.onBackPressed();}
+    @Override public boolean onKeyDown(int key,KeyEvent e){if(page==0&&(key==KeyEvent.KEYCODE_VOLUME_DOWN||key==KeyEvent.KEYCODE_VOLUME_UP)){if(e.getRepeatCount()==0)capture();return true;}return super.onKeyDown(key,e);}
+    void showInfo(){
+        boolean compat=!getPackageName().equals("com.silverroom.camera");
+        String info=(compat?"镜头兼容测试 M：尝试不同的应用标识是否能获得辅助镜头。不是美颜相机的产品，不包含其代码或服务。能否开放仍由当前系统决定。本测试版与原版底片相互独立。\n\n":"")+camera.report+
+            "\n\n标称焦段与镜头\n14mm：超广角原生 1×\n23mm：主摄原生 1×\n85mm：潜望长焦原生 1×\n35/50mm：主摄裁切\n135/230mm：长焦裁切\n\n未检测：系统没有返回可识别的该镜头；不可用：发现镜头，但打开或输出失败。扩展检测只读取候选 ID 元数据，选中该焦段才尝试打开，不按 ID 数字猜测镜头。\n\n未检测或不可用的基础镜头会禁用整组，不以主摄裁切替代超广角或长焦。不保证原厂 V3+ 或 2 亿像素模式。照片保存到 Pictures/Silverroom；底片在应用内部，卸载会清除内部底片。拍摄与暗房可离线使用；检查升级时访问 GitHub。";
+        new AlertDialog.Builder(this).setTitle("镜头检测 · "+(compat?"兼容测试 M":"标准版")).setMessage(info).setPositiveButton("重新检测",(d,w)->{if(!busy){camera.rescan();toast("正在检测，稍后可长按画幅按钮查看");}else toast("请等待显影完成");}).setNegativeButton("关闭",null).setNeutralButton("复制诊断",(d,w)->{((android.content.ClipboardManager)getSystemService(CLIPBOARD_SERVICE)).setPrimaryClip(ClipData.newPlainText("Fancy Camera 诊断",info));toast("诊断已复制");}).show();
+    }
+    // Darkroom and contact sheet use the same local negatives as the camera.
+    LinearLayout roomControls;Controls.Dial[] colorDials=new Controls.Dial[3];SeekBar grainBar,fadeBar,exposureBar;boolean updatingRoom;
+    void buildDarkroom(){
+        darkPage=column();darkPage.setVisibility(View.GONE);body.addView(darkPage,new LinearLayout.LayoutParams(-1,-1));
+        LinearLayout heading=row();TextView title=text("彩色暗房",21,CREAM);heading.addView(title,new LinearLayout.LayoutParams(0,dp(42),1));add(heading,button("＋ 导入底片",this::importPhoto),110,42);add(darkPage,heading,-1,42);gap(darkPage,8);
+        FrameLayout imageFrame=new FrameLayout(this);imageFrame.setBackground(bg(0xff0c100d,8,0xff3c4337));darkPage.addView(imageFrame,new LinearLayout.LayoutParams(-1,0,1));darkImage=new ImageView(this);darkImage.setScaleType(ImageView.ScaleType.FIT_CENTER);imageFrame.addView(darkImage,new FrameLayout.LayoutParams(-1,-1));
+        roomLabel=text("C  /  M  /  Y\n\n等待一张底片\n从相册导入，或在取景页拍摄",14,MUTED);roomLabel.setGravity(Gravity.CENTER);roomLabel.setLineSpacing(dp(5),1);imageFrame.addView(roomLabel,new FrameLayout.LayoutParams(-1,-1));
+        TextView compare=button("按住看原片",()->{});compare.setTextSize(10);compare.setBackground(bg(0xa019201a,8,0));FrameLayout.LayoutParams cp=new FrameLayout.LayoutParams(dp(100),dp(40),Gravity.BOTTOM|Gravity.RIGHT);cp.setMargins(0,0,dp(10),dp(10));imageFrame.addView(compare,cp);compare.setOnTouchListener((v,e)->{if(editBase==null)return true;if(e.getAction()==MotionEvent.ACTION_DOWN){editVersion++;darkImage.setImageBitmap(editBase);}if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){renderEdit();v.performClick();}return true;});
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);roomControls=column();scroll.addView(roomControls);add(darkPage,scroll,-1,280);
+        LinearLayout stockRow=row();TextView stock=text("胶片配方",12,CREAM);add(stockRow,stock,82,42);roomStockButton=button(Film.NAMES[settings.stock]+"  ▾",this::showFilms);stockRow.addView(roomStockButton,new LinearLayout.LayoutParams(0,dp(42),1));add(roomControls,stockRow,-1,42);roomStrengthButton=button("胶片强度 · "+FilmStrength.percent(settings.strength)+"%",this::showStrength);add(roomControls,roomStrengthButton,-1,40);
+        LinearLayout dials=row();String[] names={"C 青","M 品红","Y 黄"};int[] colors={CYAN,MAGENTA,AMBER};
+        for(int i=0;i<3;i++){final int which=i;LinearLayout col=column();col.setGravity(Gravity.CENTER);Controls.Dial dial=new Controls.Dial(this);dial.configure(names[i],-100,100,1,colors[i]);dial.change=v->{if(which==0)settings.cyan=v/100;if(which==1)settings.magenta=v/100;if(which==2)settings.yellow=v/100;syncFilm();};colorDials[i]=dial;add(col,dial,82,82);weight(dials,col,88);}add(roomControls,dials,-1,88);
+        exposureBar=slider("显影曝光",-200,200,0,v->{settings.exposure=v/100f;renderEdit();});grainBar=slider("银盐颗粒",0,100,Math.round(settings.grain*100),v->{settings.grain=v/100f;syncFilm();});fadeBar=slider("褪色黑位",0,100,Math.round(settings.fade*100),v->{settings.fade=v/100f;syncFilm();});
+        LinearLayout actions=row();weight(actions,button("重置配方",()->{settings.cyan=settings.magenta=settings.yellow=settings.exposure=0;settings.grain=.2f;settings.fade=.1f;settings.strength=1;refreshRoomControls();syncFilm();}),44);saveButton=button("显影并保存",this::exportEdit);saveButton.setTextColor(INK);saveButton.setBackground(bg(AMBER,9,0));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(44),1.4f);sp.leftMargin=dp(10);actions.addView(saveButton,sp);add(darkPage,actions,-1,48);refreshRoomControls();
+    }
+    interface Slide {void changed(int v);}
+    SeekBar slider(String label,int min,int max,int initial,Slide change){LinearLayout l=row();TextView t=text(label,11,MUTED);add(l,t,82,38);SeekBar b=new SeekBar(this);b.setMax(max-min);b.setProgress(initial-min);b.setProgressTintList(ColorStateList.valueOf(AMBER));b.setThumbTintList(ColorStateList.valueOf(CREAM));l.addView(b,new LinearLayout.LayoutParams(0,dp(38),1));TextView val=text(String.valueOf(initial),10,CREAM);val.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);val.setTypeface(Typeface.MONOSPACE);add(l,val,40,38);b.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}public void onProgressChanged(SeekBar b,int p,boolean user){int v=p+min;val.setText(String.valueOf(v));if(user&&!updatingRoom)change.changed(v);}});add(roomControls,l,-1,38);return b;}
+    void refreshRoomControls(){refreshStrength();if(colorDials[0]==null)return;updatingRoom=true;colorDials[0].set(settings.cyan*100);colorDials[1].set(settings.magenta*100);colorDials[2].set(settings.yellow*100);grainBar.setProgress(Math.round(settings.grain*100));fadeBar.setProgress(Math.round(settings.fade*100));exposureBar.setProgress(Math.round(settings.exposure*100)+200);roomStockButton.setText(Film.NAMES[settings.stock]+"  ▾");updatingRoom=false;}
+    void importPhoto(){
+        Intent picker=new Intent(MediaStore.ACTION_PICK_IMAGES).setType("image/*");if(Build.VERSION.SDK_INT>=35)picker.putExtra(MediaStore.EXTRA_PICK_IMAGES_LAUNCH_TAB,MediaStore.PICK_IMAGES_TAB_IMAGES);
+        try{startActivityForResult(picker,IMPORT);}catch(ActivityNotFoundException|SecurityException unavailable){try{Intent album=new Intent(Intent.ACTION_PICK,MediaStore.Images.Media.EXTERNAL_CONTENT_URI).setType("image/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivityForResult(album,IMPORT);}catch(ActivityNotFoundException|SecurityException missing){toast("没有找到可用的系统相册，请检查系统相册是否启用");}}
+    }
+    @Override protected void onActivityResult(int r,int result,Intent data){super.onActivityResult(r,result,data);if(r==IMPORT&&result==RESULT_OK&&data!=null&&data.getData()!=null){Uri uri=data.getData();worker.execute(()->{try{File f=new File(getFilesDir(),"import_"+System.currentTimeMillis()+".img");try(InputStream in=getContentResolver().openInputStream(uri);OutputStream out=new FileOutputStream(f)){if(in==null)throw new IOException("无法读取照片");byte[] b=new byte[65536];int n;while((n=in.read(b))!=-1)out.write(b,0,n);}loadEdit(f,null);}catch(Throwable e){main.post(()->toast("导入失败："+e.getMessage()));}});}}
+    void loadEdit(File original,String id){try{JSONObject meta=id==null?new JSONObject():readMeta(id);final float aspect=(float)meta.optDouble("frame_aspect",0);final Bitmap b=cropFrame(decode(original,1400),aspect);final float priorExposure=(float)meta.optDouble("exposure",0);main.post(()->{editOriginal=original;editId=id;editBase=b;editAspect=aspect;roomLabel.setVisibility(View.GONE);settings.exposure=priorExposure;refreshRoomControls();renderEdit();});}catch(Throwable e){main.post(()->toast("无法打开底片："+e.getMessage()));}}
+    void renderEdit(){if(editBase==null)return;final int version=++editVersion;final Bitmap input=editBase;final Film.Settings film=settings.copy();main.removeCallbacks(renderTask);renderTask=()->worker.execute(()->{if(version!=editVersion)return;try{Bitmap result=Film.develop(input,film);main.post(()->{if(version==editVersion&&!destroyed)darkImage.setImageBitmap(result);else result.recycle();});}catch(Throwable e){main.post(()->toast("预览显影失败："+e.getMessage()));}});main.postDelayed(renderTask,90);}
+    Runnable renderTask=()->{};
+    void exportEdit(){
+        if(editOriginal==null){toast("请先导入照片，或从底片页选择原片");return;}if(exporting)return;
+        exporting=true;saveButton.setText("正在显影…");saveButton.setEnabled(false);
+        final File source=editOriginal;final Film.Settings film=settings.copy();final String originLens=editId==null?"导入照片":readMeta(editId).optString("lens","");final CaptureOrientation.Snapshot pose=readPose(editId);final float aspect=editAspect;
+        worker.execute(()->{
+            try{Bitmap b=cropFrame(decode(source,4096),aspect);Bitmap out=Film.develop(b,film);b.recycle();String id=new SimpleDateFormat("yyyyMMdd_HHmmss_SSS",Locale.US).format(new Date());
+                java.nio.file.Files.copy(source.toPath(),new File(rollDir,id+"_original.jpg").toPath());writeJpeg(out,new File(rollDir,id+".jpg"),pose);writeMeta(id,Uri.EMPTY,film,originLens,pose,aspect);
+                Uri uri=saveMedia(out,id,pose);out.recycle();writeMeta(id,uri,film,originLens,pose,aspect);
+                main.post(()->{shots++;persist();frameCount.setText(String.format(Locale.US,"%03d",shots));toast("显影完成 · 已保存到系统相册");});
+            }catch(Throwable e){main.post(()->toast("显影保存失败："+e.getMessage()));}
+            finally{main.post(()->{exporting=false;saveButton.setEnabled(true);saveButton.setText("显影并保存");});}
+        });
+    }
+    void refreshGallery(){
+        int oldScroll=galleryScroll==null?0:galleryScroll.getScrollY();final int version=++galleryVersion;galleryIds=NegativeStore.list(rollDir);selectedNegatives.items(galleryIds);if(galleryIds.isEmpty())selectingNegatives=false;
+        negativeCells.clear();negativeMarks.clear();galleryPage.removeAllViews();LinearLayout heading=row();galleryTitle=text("底片",21,CREAM);heading.addView(galleryTitle,new LinearLayout.LayoutParams(0,dp(48),1));
+        gallerySelect=button("选择",()->{if(deletingNegatives)return;selectingNegatives=!selectingNegatives;if(!selectingNegatives)selectedNegatives.clear();refreshNegativeSelection();});add(heading,gallerySelect,62,42);TextView importButton=button("导入",()->{switchPage(1);importPhoto();});LinearLayout.LayoutParams imp=new LinearLayout.LayoutParams(dp(62),dp(42));imp.leftMargin=dp(6);heading.addView(importButton,imp);add(galleryPage,heading,-1,48);
+        galleryNote=text("",11,MUTED);add(galleryPage,galleryNote,-1,28);
+        galleryScroll=new ScrollView(this);LinearLayout grid=column();galleryScroll.addView(grid);galleryPage.addView(galleryScroll,new LinearLayout.LayoutParams(-1,0,1));
+        if(galleryIds.isEmpty()){TextView empty=text("一卷尚未开始的胶片\n\n拍摄或导入，开始记录光影",17,MUTED);empty.setGravity(Gravity.CENTER);add(grid,empty,-1,240);}
+        LinearLayout line=null;for(int i=0;i<galleryIds.size();i++){if(i%3==0){line=row();add(grid,line,-1,160);}String id=galleryIds.get(i);LinearLayout cell=column();cell.setPadding(dp(3),dp(3),dp(3),dp(3));FrameLayout picture=new FrameLayout(this);cell.addView(picture,new LinearLayout.LayoutParams(-1,0,1));ImageView im=new ImageView(this);im.setScaleType(ImageView.ScaleType.CENTER_CROP);picture.addView(im,new FrameLayout.LayoutParams(-1,-1));TextView mark=text("",14,INK);mark.setGravity(Gravity.CENTER);mark.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);FrameLayout.LayoutParams mp=new FrameLayout.LayoutParams(dp(26),dp(26),Gravity.TOP|Gravity.RIGHT);mp.setMargins(dp(5),dp(5),dp(5),0);picture.addView(mark,mp);negativeCells.put(id,cell);negativeMarks.put(id,mark);
+            TextView label=text(String.format(Locale.US,"%03d  /  %s:%s",galleryIds.size()-i,id.substring(9,11),id.substring(11,13)),9,AMBER);label.setTypeface(Typeface.MONOSPACE);label.setGravity(Gravity.CENTER);add(cell,label,-1,23);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-1,1);lp.setMargins(dp(3),dp(3),dp(3),dp(3));line.addView(cell,lp);cell.setFocusable(true);cell.setOnClickListener(v->{if(deletingNegatives)return;if(selectingNegatives){selectedNegatives.toggle(id);refreshNegativeSelection();}else viewPhoto(id);});cell.setOnLongClickListener(v->{if(deletingNegatives)return true;selectingNegatives=true;selectedNegatives.toggle(id);v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);refreshNegativeSelection();return true;});
+            thumbs.execute(()->{if(version!=galleryVersion)return;try{Bitmap b=decode(new File(rollDir,id+".jpg"),420);main.post(()->{if(!destroyed&&version==galleryVersion)im.setImageBitmap(b);else b.recycle();});}catch(Exception|OutOfMemoryError ignored){}});
+        }
+        if(line!=null)while(line.getChildCount()<3)line.addView(new View(this),new LinearLayout.LayoutParams(0,1,1));
+        galleryActions=row();galleryAll=button("全选",()->{if(!deletingNegatives){selectedNegatives.all();refreshNegativeSelection();}});add(galleryActions,galleryAll,90,44);TextView space=text("",10,MUTED);galleryActions.addView(space,new LinearLayout.LayoutParams(0,dp(44),1));galleryDelete=button("删除",()->confirmDeleteNegatives(selectedNegatives.snapshot()));galleryDelete.setTextColor(0xffef9a89);add(galleryActions,galleryDelete,110,44);add(galleryPage,galleryActions,-1,52);refreshNegativeSelection();galleryScroll.post(()->galleryScroll.scrollTo(0,oldScroll));
+    }
+    void refreshNegativeSelection(){
+        if(galleryTitle==null)return;galleryTitle.setText(selectingNegatives?"已选 "+selectedNegatives.count()+" 张":"底片");gallerySelect.setText(selectingNegatives?"取消":"选择");gallerySelect.setEnabled(!deletingNegatives&&!galleryIds.isEmpty());galleryNote.setText(deletingNegatives?"正在删除底片…":selectingNegatives?"点选底片 · 可多选，删除前会确认":galleryIds.size()+" 张底片 · 点击查看，长按多选");galleryActions.setVisibility(selectingNegatives?View.VISIBLE:View.GONE);galleryAll.setText(selectedNegatives.every()?"取消全选":"全选");galleryAll.setEnabled(!deletingNegatives);galleryDelete.setText("删除 "+selectedNegatives.count()+" 张");galleryDelete.setEnabled(!deletingNegatives&&selectedNegatives.count()>0);galleryDelete.setAlpha(galleryDelete.isEnabled()?1:.4f);
+        for(String id:negativeCells.keySet()){boolean checked=selectedNegatives.contains(id);LinearLayout cell=negativeCells.get(id);cell.setBackground(bg(PANEL,8,checked?AMBER:0));cell.setSelected(checked);cell.setContentDescription("底片 "+id+(selectingNegatives?(checked?"，已选中":"，未选中"):"，点击查看，长按多选"));TextView mark=negativeMarks.get(id);mark.setVisibility(selectingNegatives?View.VISIBLE:View.GONE);mark.setText(checked?"✓":"");mark.setBackground(bg(checked?AMBER:0xaa121514,16,checked?AMBER:CREAM));}
+    }
+    void viewPhoto(String id){if(!NegativeStore.valid(id))return;List<String> ids=NegativeStore.list(rollDir);if(!ids.contains(id)){toast("底片已不存在");refreshGallery();return;}PhotoViewer opened=new PhotoViewer(this,ids,id,new PhotoViewer.Actions(){public void share(String current){sharePhoto(current);}public void edit(String current){if(activePhotoViewer!=null)activePhotoViewer.dismiss();editNegative(current);}public void delete(String current){confirmDeleteNegatives(Collections.singletonList(current));}public void load(PhotoViewer viewer,String current,long token){loadViewerPhoto(viewer,current,token);}});activePhotoViewer=opened;opened.setOnDismissListener(d->{if(activePhotoViewer==opened)activePhotoViewer=null;});opened.show();}
+    void loadViewerPhoto(PhotoViewer viewer,String id,long token){viewer.metadata(id,token,readMeta(id).optString("lens",""));worker.execute(()->{if(!viewer.matches(id,token))return;try{Bitmap b=decode(new File(rollDir,id+".jpg"),4096);main.post(()->{if(!destroyed&&viewer.isShowing())viewer.image(id,token,b);else b.recycle();});}catch(Exception|OutOfMemoryError e){main.post(()->{if(viewer.isShowing())viewer.failed(id,token);});}});}
+    void editNegative(String id){JSONObject j=readMeta(id);settings.stock=FilmCatalog.safe(j.optInt("stock",1));settings.strength=FilmStrength.clamp((float)j.optDouble("strength",1));settings.cyan=(float)j.optDouble("cyan",0);settings.magenta=(float)j.optDouble("magenta",0);settings.yellow=(float)j.optDouble("yellow",0);settings.grain=(float)j.optDouble("grain",.2);settings.fade=(float)j.optDouble("fade",.1);setStock(settings.stock);switchPage(1);worker.execute(()->loadEdit(new File(rollDir,id+"_original.jpg"),id));}
+    void confirmDeleteNegatives(List<String> requested){
+        if(deletingNegatives)return;if(busy||exporting){toast("请等待拍摄或显影保存完成");return;}List<String> ids=new ArrayList<>();for(String id:requested)if(NegativeStore.valid(id)&&!ids.contains(id))ids.add(id);if(ids.isEmpty())return;
+        AlertDialog confirm=new AlertDialog.Builder(this).setTitle("删除 "+ids.size()+" 张底片？").setMessage("将删除 App 内的原片、内部成片与显影记录，删除后无法再次显影。\n\n已保存到系统相册的照片会保留。").setNegativeButton("取消",null).setPositiveButton("删除 "+ids.size()+" 张",(d,w)->deleteNegatives(ids)).create();confirm.setOnShowListener(d->confirm.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(0xffef9a89));confirm.show();
+    }
+    void deleteNegatives(List<String> ids){
+        if(deletingNegatives||busy||exporting)return;deletingNegatives=true;refreshNegativeSelection();worker.execute(()->{Set<String> removed=new HashSet<>();for(String id:ids)try{if(NegativeStore.delete(rollDir,id))removed.add(id);}catch(IOException|IllegalArgumentException ignored){}main.post(()->{deletingNegatives=false;if(destroyed)return;
+            if(activePhotoViewer!=null&&removed.contains(activePhotoViewer.currentId()))activePhotoViewer.dismiss();
+            if(editId!=null&&removed.contains(editId)){editVersion++;main.removeCallbacks(renderTask);editOriginal=null;editId=null;editBase=null;editAspect=0;darkImage.setImageDrawable(null);roomLabel.setVisibility(View.VISIBLE);}
+            if(removed.size()==ids.size()){selectingNegatives=false;selectedNegatives.clear();}refreshGallery();toast(removed.size()==ids.size()?"已删除 "+removed.size()+" 张底片，相册照片已保留":"已删除 "+removed.size()+" 张，"+(ids.size()-removed.size())+" 张未完成，请重试");});});
+    }
+    void sharePhoto(String id){String uri=readMeta(id).optString("uri");if(uri.length()==0){toast("找不到相册文件，请重新显影");return;}Intent share=new Intent(Intent.ACTION_SEND);share.setType("image/jpeg");share.putExtra(Intent.EXTRA_STREAM,Uri.parse(uri));share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);try{startActivity(Intent.createChooser(share,"分享 Fancy Camera 照片"));}catch(Exception e){toast("分享失败："+e.getMessage());}}
+}
+
+
+
+
+
+

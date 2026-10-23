@@ -1,0 +1,69 @@
+package com.silverroom.camera;
+
+import android.app.*;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.*;
+import android.view.*;
+import android.widget.*;
+import java.util.*;
+import static com.silverroom.camera.Controls.*;
+
+/** Popup-only live contact sheet; every recipe is developed from the same clean frame. */
+public final class FilmPicker extends Dialog {
+    public interface Listener {void choose(int id);void pinsChanged(List<Integer> ids);}
+    private final Activity owner;private final Listener listener;private final int selected;private final List<Integer> recent;private List<Integer> pins;
+    private LinearLayout grid,categories;private EditText search;private ScrollView scroll;private TextView liveLabel,detail,overview;private Switch liveSwitch;private final List<TextView> placeholders=new ArrayList<>();private int category,viewportHeight;private boolean large,liveOn;
+    private FavoritesPicker favoritesPicker;private final LiveFilmPreviews previews;private final Handler main=new Handler(Looper.getMainLooper());private final Runnable pulse=()->tick();
+    public FilmPicker(Activity a,int id,List<Integer> favorites,List<Integer> history,Listener l,CameraEngine camera,android.graphics.Bitmap still,Film.Settings base){super(a);owner=a;selected=id;pins=new ArrayList<>(favorites);recent=new ArrayList<>(history);listener=l;previews=new LiveFilmPreviews(camera,still,base,this::updateBadge);liveOn=camera!=null&&owner.getSharedPreferences("silverroom",0).getBoolean("live_film_previews",true);}
+    int dp(float n){return Math.round(n*owner.getResources().getDisplayMetrics().density);}
+    TextView text(String s,int size,int color){TextView t=new TextView(owner);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setGravity(Gravity.CENTER_VERTICAL);t.setIncludeFontPadding(false);return t;}
+    GradientDrawable bg(int color,int border){GradientDrawable b=new GradientDrawable();b.setColor(color);b.setCornerRadius(dp(12));if(border!=0)b.setStroke(dp(1),border);return b;}
+    LinearLayout column(){LinearLayout l=new LinearLayout(owner);l.setOrientation(1);return l;}
+    @Override protected void onCreate(Bundle state){
+        super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);
+        large=false;previews.quality(false);
+        LinearLayout root=column();root.setPadding(dp(12),dp(10),dp(12),dp(8));root.setBackground(bg(INK,0));root.setFocusableInTouchMode(true);
+        LinearLayout header=new LinearLayout(owner);header.setGravity(Gravity.CENTER_VERTICAL);TextView title=text("胶片库",20,CREAM);header.addView(title,new LinearLayout.LayoutParams(0,dp(44),1));
+        LinearLayout modes=new LinearLayout(owner);modes.setGravity(Gravity.CENTER_VERTICAL);modes.setPadding(dp(2),dp(3),dp(2),dp(3));modes.setBackground(bg(PANEL,0));overview=text("总览",11,AMBER);detail=text("细看",11,MUTED);for(TextView t:new TextView[]{overview,detail}){t.setGravity(Gravity.CENTER);t.setFocusable(true);modes.addView(t,new LinearLayout.LayoutParams(dp(36),dp(32)));}header.addView(modes,new LinearLayout.LayoutParams(dp(76),dp(38)));overview.setOnClickListener(v->mode(false));detail.setOnClickListener(v->mode(true));
+        TextView find=text("搜索",12,CREAM);find.setGravity(Gravity.CENTER);find.setFocusable(true);header.addView(find,new LinearLayout.LayoutParams(dp(44),dp(44)));find.setOnClickListener(v->{boolean open=search.getVisibility()!=View.VISIBLE;search.setVisibility(open?View.VISIBLE:View.GONE);if(open)search.requestFocus();else{search.setText("");((android.view.inputmethod.InputMethodManager)owner.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)).hideSoftInputFromWindow(search.getWindowToken(),0);}});
+        liveSwitch=new Switch(owner);liveSwitch.setText("实时");liveSwitch.setTextSize(11);liveSwitch.setTextColor(CREAM);liveSwitch.setShowText(false);liveSwitch.setSwitchMinWidth(dp(30));liveSwitch.setSwitchPadding(dp(3));liveSwitch.setThumbTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{AMBER,MUTED}));liveSwitch.setTrackTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_checked},new int[]{}},new int[]{0xff78613a,0xff3c4337}));liveSwitch.setChecked(liveOn);liveSwitch.setEnabled(previews.canLive());liveSwitch.setContentDescription(previews.canLive()?"实时胶片预览开关":"底片使用静态预览");header.addView(liveSwitch,new LinearLayout.LayoutParams(dp(78),dp(44)));liveSwitch.setOnCheckedChangeListener((v,on)->{liveOn=on;owner.getSharedPreferences("silverroom",0).edit().putBoolean("live_film_previews",on).apply();previews.enable(on);updateBadge();});
+        TextView close=text("×",25,MUTED);close.setGravity(Gravity.CENTER);close.setContentDescription("关闭胶片库");close.setFocusable(true);header.addView(close,new LinearLayout.LayoutParams(dp(36),dp(44)));close.setOnClickListener(v->dismiss());root.addView(header);
+        LinearLayout info=new LinearLayout(owner);TextView caption=text("同一画面 · 点选即用",10,MUTED);info.addView(caption,new LinearLayout.LayoutParams(0,dp(24),1));liveLabel=text("○ 等待画面",10,MUTED);liveLabel.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);info.addView(liveLabel,new LinearLayout.LayoutParams(dp(110),dp(24)));root.addView(info);
+        search=new EditText(owner);search.setSingleLine(true);search.setTextSize(13);search.setTextColor(CREAM);search.setHintTextColor(MUTED);search.setHint("搜索胶片、CC、CN、人像、电影…");search.setPadding(dp(12),0,dp(12),0);search.setBackground(bg(PANEL,0));search.setVisibility(View.GONE);root.addView(search,new LinearLayout.LayoutParams(-1,dp(42)));
+        HorizontalScrollView tabs=new HorizontalScrollView(owner);tabs.setHorizontalScrollBarEnabled(false);categories=new LinearLayout(owner);tabs.addView(categories);String[] labels=FilmGroups.libraryLabels();
+        for(int i=0;i<labels.length;i++){final int tab=i;TextView t=text(labels[i],11,i==0?AMBER:MUTED);t.setGravity(Gravity.CENTER);t.setPadding(dp(10),0,dp(10),0);categories.addView(t,new LinearLayout.LayoutParams(-2,dp(36)));t.setOnClickListener(v->{category=tab;render();});}root.addView(tabs);
+        scroll=new ScrollView(owner);scroll.setClipToPadding(false);grid=column();scroll.addView(grid);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));scroll.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int h=b-t;if(h>0&&h!=viewportHeight){viewportHeight=h;render();}previews.visible();});scroll.getViewTreeObserver().addOnScrollChangedListener(()->previews.visible());
+        LinearLayout footer=new LinearLayout(owner);TextView hint=text("☆ 收藏 · 风格灵感配方",10,MUTED);footer.addView(hint,new LinearLayout.LayoutParams(0,dp(40),1));TextView order=text("收藏排序",12,AMBER);order.setGravity(Gravity.CENTER);footer.addView(order,new LinearLayout.LayoutParams(dp(82),dp(40)));order.setOnClickListener(v->{favoritesPicker=new FavoritesPicker(owner,pins,ids->{pins=new ArrayList<>(ids);listener.pinsChanged(new ArrayList<>(pins));render();});favoritesPicker.show();});root.addView(footer);
+        setContentView(root);getWindow().setBackgroundDrawableResource(android.R.color.transparent);getWindow().setGravity(Gravity.BOTTOM);getWindow().setLayout(-1,Math.round(owner.getResources().getDisplayMetrics().heightPixels*.94f));getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE|WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){render();}public void afterTextChanged(Editable e){}});render();
+    }
+    @Override protected void onStart(){super.onStart();previews.start(liveOn);main.post(pulse);scroll.post(()->previews.visible());}
+    @Override protected void onStop(){main.removeCallbacks(pulse);if(favoritesPicker!=null)favoritesPicker.dismiss();previews.close();super.onStop();}
+    private void tick(){updateBadge();previews.visible();if(isShowing())main.postDelayed(pulse,300);}
+    private void mode(boolean selected){if(large==selected)return;large=selected;previews.quality(large);render();}
+    private void updateBadge(){if(liveLabel==null)return;String status=(previews.fresh()?"● ":"○ ")+previews.status();if(!TextUtils.equals(liveLabel.getText(),status))liveLabel.setText(status);int color=previews.fresh()?CYAN:MUTED;if(liveLabel.getCurrentTextColor()!=color)liveLabel.setTextColor(color);String hint=previews.canLive()&&!liveOn?"实时已关闭":"等待画面";for(TextView p:placeholders)if(!TextUtils.equals(p.getText(),hint))p.setText(hint);}
+    private void render(){
+        overview.setTextColor(large?MUTED:AMBER);overview.setBackground(bg(large?PANEL:0xff394036,0));overview.setSelected(!large);overview.setContentDescription("总览，三列"+(!large?"，已选中":""));detail.setTextColor(large?AMBER:MUTED);detail.setBackground(bg(large?0xff394036:PANEL,0));detail.setSelected(large);detail.setContentDescription("细看，两列"+(large?"，已选中":""));
+        for(int i=0;i<categories.getChildCount();i++)((TextView)categories.getChildAt(i)).setTextColor(i==category?AMBER:MUTED);
+        previews.unbind();placeholders.clear();grid.removeAllViews();List<Integer> ids=new ArrayList<>();
+        if(category==1)ids.addAll(pins);else if(category==2)ids.addAll(recent);else ids.addAll(FilmGroups.ids(FilmGroups.libraryGroup(category)));
+        String q=search.getText().toString();LinearLayout row=null;int shown=0,columns=large?2:3;int rows=Math.max(1,(ids.size()+columns-1)/columns);int rowHeight=large?dp(208):Math.max(dp(104),Math.min(dp(124),viewportHeight/rows));
+        for(int id:ids){if(!FilterShelf.matches(id,q))continue;
+            if(shown%columns==0){row=new LinearLayout(owner);grid.addView(row,new LinearLayout.LayoutParams(-1,rowHeight));}
+            LinearLayout card=column();card.setPadding(dp(2),dp(2),dp(2),dp(2));card.setBackground(bg(PANEL,id==selected?AMBER:0xff343a32));FrameLayout picture=new FrameLayout(owner);picture.setBackgroundColor(0xff0b100d);card.addView(picture,new LinearLayout.LayoutParams(-1,0,1));
+            TextView placeholder=text(previews.canLive()&&!liveOn?"实时已关闭":"等待画面",10,MUTED);placeholders.add(placeholder);placeholder.setGravity(Gravity.CENTER);picture.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));ImageView image=new ImageView(owner);image.setScaleType(ImageView.ScaleType.FIT_CENTER);image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);picture.addView(image,new FrameLayout.LayoutParams(-1,-1));previews.bind(id,image);
+            TextView number=text(id==selected?"当前":String.format(Locale.US,"%02d",id+1),9,id==selected?AMBER:CREAM);number.setGravity(Gravity.CENTER);number.setBackground(bg(0x99121514,0));FrameLayout.LayoutParams np=new FrameLayout.LayoutParams(dp(30),dp(22),Gravity.LEFT|Gravity.TOP);picture.addView(number,np);
+            TextView star=text(pins.contains(id)?"★":"☆",18,pins.contains(id)?AMBER:CREAM);star.setGravity(Gravity.CENTER);star.setBackground(bg(0x99121514,0));star.setContentDescription((pins.contains(id)?"移出常用：":"加入常用：")+FilmCatalog.NAMES[id]);star.setFocusable(true);picture.addView(star,new FrameLayout.LayoutParams(dp(32),dp(32),Gravity.RIGHT|Gravity.TOP));
+            TextView name=text(FilmCatalog.NAMES[id],large?12:10,id==selected?AMBER:CREAM);name.setGravity(Gravity.CENTER);name.setMaxLines(2);name.setEllipsize(TextUtils.TruncateAt.END);card.addView(name,new LinearLayout.LayoutParams(-1,dp(34)));if(large){TextView tag=text(FilmCatalog.TAGS[id],9,MUTED);tag.setGravity(Gravity.CENTER);tag.setSingleLine(true);tag.setEllipsize(TextUtils.TruncateAt.END);card.addView(tag,new LinearLayout.LayoutParams(-1,dp(20)));}
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,-1,1);p.setMargins(dp(3),dp(3),dp(3),dp(3));row.addView(card,p);card.setFocusable(true);card.setContentDescription(FilmCatalog.NAMES[id]+"，"+FilmCatalog.DESCRIPTIONS[id]+(id==selected?"，当前使用":"，点击应用"));card.setOnClickListener(v->{listener.choose(id);dismiss();});star.setOnClickListener(v->{pins=FilterShelf.toggle(pins,id);listener.pinsChanged(new ArrayList<>(pins));render();});shown++;
+        }
+        if(row!=null)while(row.getChildCount()<columns)row.addView(new View(owner),new LinearLayout.LayoutParams(0,1,1));
+        if(shown==0){TextView empty=text(category==2&&q.isEmpty()?"选择过的胶片会出现在这里":"没有匹配的胶片",13,MUTED);empty.setPadding(dp(8),dp(24),0,0);grid.addView(empty);}
+        scroll.post(()->previews.visible());
+    }
+}
+
