@@ -26,12 +26,12 @@ final class ZoomPhotoView extends View {
     private float threshold(){float d=getResources().getDisplayMetrics().density;return Math.max(96*d,Math.min(160*d,getHeight()*.2f));}
     private float horizontalThreshold(){float d=getResources().getDisplayMetrics().density;return Math.max(56*d,Math.min(96*d,getWidth()*.2f));}
     @Override protected void onDraw(Canvas c){
-        c.drawColor(0xff0b0e0c);float d=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity;
+        c.drawColor(tone(AppTheme.IMAGE_BG));float d=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity;
         if(bitmap==null){label.setColor(MUTED);label.setTextSize(13*sp);label.setTextAlign(Paint.Align.CENTER);c.drawText(placeholder,getWidth()/2f,getHeight()/2f,label);return;}
-        float progress=Math.min(1,Math.abs(swipeY)/threshold());if(swipeY<0){label.setColor(0xff522a28);c.drawRect(0,getHeight()-Math.max(62*d,-swipeY),getWidth(),getHeight(),label);label.setColor(0xffffb3a6);label.setTextAlign(Paint.Align.CENTER);label.setTextSize(13*sp);c.drawText(progress>=1?"↑ 松手删除":"↑ 继续上滑删除",getWidth()/2f,getHeight()-25*d,label);}else if(swipeY>0){label.setColor(MUTED);label.setTextAlign(Paint.Align.CENTER);label.setTextSize(12*sp);c.drawText(progress>=1?"↓ 松手返回底片列表":"↓ 下滑返回底片列表",getWidth()/2f,32*d,label);}
+        float progress=Math.min(1,Math.abs(swipeY)/threshold());if(swipeY<0){label.setColor(tone(AppTheme.DANGER_BG));c.drawRect(0,getHeight()-Math.max(62*d,-swipeY),getWidth(),getHeight(),label);label.setColor(tone(AppTheme.DANGER));label.setTextAlign(Paint.Align.CENTER);label.setTextSize(13*sp);c.drawText(progress>=1?"↑ 松手删除":"↑ 继续上滑删除",getWidth()/2f,getHeight()-25*d,label);}else if(swipeY>0){label.setColor(MUTED);label.setTextAlign(Paint.Align.CENTER);label.setTextSize(12*sp);c.drawText(progress>=1?"↓ 松手返回底片列表":"↓ 下滑返回底片列表",getWidth()/2f,32*d,label);}
         if(swipeX!=0){label.setColor(MUTED);label.setTextAlign(Paint.Align.CENTER);label.setTextSize(12*sp);c.drawText(swipeX<0?(next?"下一张 →":"已是最后一张"):(previous?"← 上一张":"已是第一张"),getWidth()/2f,getHeight()-25*d,label);}
         c.save();c.translate(getWidth()/2f+viewport.x+swipeX,getHeight()/2f+viewport.y+swipeY);c.scale(viewport.fit*viewport.zoom,viewport.fit*viewport.zoom);imagePaint.setAlpha(Math.round(255*opacity*(1-.3f*progress)));c.drawBitmap(bitmap,-bitmap.getWidth()/2f,-bitmap.getHeight()/2f,imagePaint);c.restore();
-        if(viewport.zoom>1.01f){label.setColor(0xbb151b16);c.drawRoundRect(10*d,10*d,64*d,38*d,8*d,8*d,label);label.setColor(CREAM);label.setTextAlign(Paint.Align.CENTER);label.setTextSize(11*sp);c.drawText(String.format(java.util.Locale.US,"%.1f×",viewport.zoom),37*d,28*d,label);}
+        if(viewport.zoom>1.01f){label.setColor(AppTheme.OVERLAY_BG);c.drawRoundRect(10*d,10*d,64*d,38*d,8*d,8*d,label);label.setColor(AppTheme.OVERLAY_TEXT);label.setTextAlign(Paint.Align.CENTER);label.setTextSize(11*sp);c.drawText(String.format(java.util.Locale.US,"%.1f×",viewport.zoom),37*d,28*d,label);}
     }
     @Override public boolean onTouchEvent(MotionEvent e){
         int action=e.getActionMasked();

@@ -1,6 +1,16 @@
-# Fancy Camera · Android 1.19.0
+# Fancy Camera · Android 1.20.0
 
 以彩色暗房和机械相机为灵感的摄影应用，使用原生 Java、Camera2 和 OpenGL ES 2.0。拍摄与暗房离线运行，无第三方库、应用账号或广告；联网仅用于读取和下载 GitHub Release 更新。
+
+## 1.20.0：黑白外观切换
+
+底部右侧设置 → 外观，提供“黑色 / 白色”两个带选中标识的按钮，立即生效并保存选择；首次及无效偏好默认保持黑色。黑色沿用原有暗房质感，白色使用柔白底色、深色文字与金棕重点色。取景工具、焦段/胶片滚轮、快门、暗房转盘和滑条、底片列表与详情、胶片库、画幅/曝光/强度/收藏/直方图弹窗、删除及升级提示均随主题适配；状态栏和导航栏同步调整图标明暗。
+
+切换使用现有视图原地换色，不重建Activity、相机会话或正在编辑的照片；保留焦段、画幅、胶片、EV、滚动位置和暗房内容。照片与实时取景不反色，取景提示、对焦标记及照片叠加标签保持适合画面的固定高对比配色。主题色与Film/CameraShaders独立，不改变显影参数、颗粒或照片像素。
+
+新增19项主题检查：两套主文字、说明文字、强调色、删除文字及选中控件的关键组合达到至少4.5:1对比度；验证反复切换可逆、默认/无效偏好、照片叠加标签、快门可辨性，以及51款实际显影结果和配方参数跨主题逐项一致。共523项Java检查通过，四套实际GLSL程序和四套兼容精度程序编译/链接通过。界面实测范围另见交付验证记录。
+
+按用户最新要求，标准构建默认仅构建、测试、推送GitHub并发布Release，不再自动通过ADB安装或索取手机地址。旧的-SkipInstall仍兼容；仅在用户明确要求安装时才使用-Install或单独安装脚本。
 
 ## 1.19.0：GitHub Release 与应用内升级
 
@@ -281,7 +291,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 - 底片：查看、分享照片，或使用保留的底片再次显影。
 - 闪光：关 / 自动 / 开，取决于当前镜头支持情况。定时为 3 秒或 10 秒。
 - 镜头信息：长按顶部工具栏“画幅”按钮查看自动检测结果和失败原因，支持重新检测、复制诊断。
-- 检查升级：点击底部右侧设置图标，再点击“检查升级”。无新版或网络不可用时不弹窗；启动时也会自动检查。
+- 外观与升级：点击底部右侧设置图标，在“黑色 / 白色”中切换界面并自动保存；“检查升级”无新版或网络不可用时不弹窗，启动时也会自动检查。
 
 面向 X100 Ultra 竖屏和长屏设计，处理状态栏、手势区域及挖孔安全区。最低 Android 11，目标 Android 15，纯 Java 字节码，可在 ARM64 安装。本版保留 1.0.1 的预览方向修复，避免重复叠加 SurfaceTexture 中的传感器旋转与前摄镜像。
 
@@ -295,11 +305,11 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 
 ## 构建与测试
 
-用户已授权后续新版默认推送源码并发布Release，然后无线覆盖安装。标准版执行`build.ps1`完成签名验证后，依次执行回归测试、`publish.ps1`和`install.ps1`。发布使用本地GitHub CLI登录账号；不上传签名私钥或ADB配置。发布失败会保留APK并明确报错，手机安装结果另行报告。只构建使用`build.ps1 -SkipPublish -SkipInstall`；只跳过安装可用`-SkipInstall`，只跳过发布可用`-SkipPublish`。M兼容版不自动发布或安装。
+按用户最新要求，后续新版默认推送源码并发布Release，不自动通过ADB安装到手机。标准版执行`build.ps1`完成签名验证后，依次执行回归测试和`publish.ps1`。发布使用本地GitHub CLI登录账号；不上传签名私钥或ADB配置。发布失败会保留APK并明确报错，不能将构建成功视为发布成功。只构建使用`build.ps1 -SkipPublish`；旧参数`-SkipInstall`保留兼容，仅明确提供`-Install`且未提供`-SkipInstall`时才调用安装脚本。M兼容版不自动发布或安装。
 
 `install.ps1`验证APK包名/原签名和本地配置中已配对手机的序列号/型号，再执行`adb install -r --no-incremental`，并回读安装版本。无线连接失败会保留APK并明确提示安装未确认，不能将构建完成当作安装成功。配置在相邻`adb-state/device.json`，设备地址变化时更新该文件；同目录配对密钥不得打入源码包。单独验证连接而不安装：`install.ps1 -Apk <APK路径> -VerifyOnly`。
 
-Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-1.19.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-1.19.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
+Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-1.20.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-1.20.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
 
 每次发布先递增Manifest的versionCode及versionName，编写`releases/<版本>.md`，然后执行默认标准构建。`publish.ps1`只提交源文件白名单，拒绝私钥/构建产物/配对状态，推送main与`v<版本>`标签，生成标准APK、更新清单及校验值。上传草稿后读取GitHub返回的资源大小和digest逐一核验，通过才公开Release。已公开版本不覆盖、标签不强推；有变化应增加版本。仓库配置位于`release.json`，App内固定更新源位于`UpdatePolicy.java`，两处必须一致。
 

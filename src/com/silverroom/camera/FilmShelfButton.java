@@ -14,9 +14,9 @@ final class FilmShelfButton extends View {
     @Override protected void drawableStateChanged(){super.drawableStateChanged();invalidate();}
     @Override protected void onDraw(Canvas canvas){
         float d=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f;
-        paint.setStyle(Paint.Style.FILL);paint.setColor(isPressed()?0xff393e36:PANEL);
+        paint.setStyle(Paint.Style.FILL);paint.setColor(isPressed()?tone(AppTheme.PRESSED):PANEL);
         if(more)canvas.drawCircle(cx,cy,16*d,paint);else canvas.drawRoundRect(cx-22*d,cy-15*d,cx+22*d,cy+15*d,10*d,10*d,paint);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(d*.8f);paint.setColor(isFocused()?AMBER:0xff3c433c);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(d*.8f);paint.setColor(isFocused()?AMBER:tone(AppTheme.BORDER));
         if(more)canvas.drawCircle(cx,cy,16*d,paint);else canvas.drawRoundRect(cx-22*d,cy-15*d,cx+22*d,cy+15*d,10*d,10*d,paint);
         paint.setStyle(Paint.Style.FILL);paint.setColor(more?CREAM:group==0?MUTED:AMBER);
         if(more){for(int i=-1;i<=1;i++)canvas.drawCircle(cx+i*5*d,cy,1.45f*d,paint);}

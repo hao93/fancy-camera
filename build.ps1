@@ -1,4 +1,4 @@
-param([ValidateSet('standard','compat-m')][string]$Variant='standard',[switch]$SkipInstall,[switch]$SkipPublish)
+param([ValidateSet('standard','compat-m')][string]$Variant='standard',[switch]$SkipInstall,[switch]$SkipPublish,[switch]$Install)
 $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 [xml]$manifestXml=Get-Content "$projectRoot\AndroidManifest.xml"
@@ -70,7 +70,7 @@ if(-not $SkipPublish -and $Variant -eq 'standard'){
         & "$projectRoot\publish.ps1" -Apk "$build\Silverroom-$appVersion.apk"
     }catch{$publicationError=$_.Exception.Message;Write-Warning "APK built; GitHub publication NOT confirmed. $publicationError"}
 }
-if(-not $SkipInstall -and $Variant -eq 'standard'){
+if($Install -and -not $SkipInstall -and $Variant -eq 'standard'){
     try { & "$projectRoot\install.ps1" -Apk "$build\Silverroom-$appVersion.apk" }
     catch { Write-Warning "Build completed; automatic installation NOT confirmed. $($_.Exception.Message)" }
 }

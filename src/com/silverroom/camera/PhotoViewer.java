@@ -8,10 +8,10 @@ import android.view.*;
 import android.widget.*;
 import static com.silverroom.camera.Controls.*;
 
-final class PhotoViewer extends Dialog {
+final class PhotoViewer extends ThemedDialog {
     interface Actions{void share(String id);void edit(String id);void delete(String id);void load(PhotoViewer viewer,String id,long token);}
     private final PhotoPager pager;private final Activity owner;private final Actions actions;private ZoomPhotoView photo;private TextView title,position,meta;private boolean started;
-    PhotoViewer(Activity owner,java.util.List<String> ids,String selected,Actions actions){super(owner,android.R.style.Theme_Material_NoActionBar);this.owner=owner;pager=new PhotoPager(ids,selected);this.actions=actions;}
+    PhotoViewer(Activity owner,java.util.List<String> ids,String selected,Actions actions){super(owner,ThemeUi.activityTheme());this.owner=owner;pager=new PhotoPager(ids,selected);this.actions=actions;}
     String currentId(){return pager.current();}
     boolean matches(String id,long token){return pager.matches(id,token);}
     int dp(float v){return Math.round(v*owner.getResources().getDisplayMetrics().density);}
@@ -24,7 +24,7 @@ final class PhotoViewer extends Dialog {
         meta=text("",10,MUTED);meta.setMaxLines(2);meta.setEllipsize(android.text.TextUtils.TruncateAt.END);root.addView(meta,new LinearLayout.LayoutParams(-1,dp(38)));
         photo=new ZoomPhotoView(owner);photo.delete=()->actions.delete(currentId());photo.exit=this::dismiss;photo.navigate=this::navigate;root.addView(photo,new LinearLayout.LayoutParams(-1,0,1));
         TextView hint=text("左右切换 · 下滑返回 · 上滑删除\n双指缩放，放大后拖动查看",10,MUTED);hint.setGravity(Gravity.CENTER);root.addView(hint,new LinearLayout.LayoutParams(-1,dp(42)));
-        LinearLayout tools=new LinearLayout(owner);String[] labels={"分享","再次显影","删除"};int[] colors={CREAM,AMBER,0xffef9a89};Runnable[] calls={()->actions.share(currentId()),()->actions.edit(currentId()),()->actions.delete(currentId())};for(int i=0;i<3;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(46),1);if(i<2)lp.rightMargin=dp(8);tools.addView(button(labels[i],colors[i],calls[i]),lp);}root.addView(tools);
+        LinearLayout tools=new LinearLayout(owner);String[] labels={"分享","再次显影","删除"};int[] colors={CREAM,AMBER,tone(AppTheme.DANGER)};Runnable[] calls={()->actions.share(currentId()),()->actions.edit(currentId()),()->actions.delete(currentId())};for(int i=0;i<3;i++){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(46),1);if(i<2)lp.rightMargin=dp(8);tools.addView(button(labels[i],colors[i],calls[i]),lp);}root.addView(tools);
         setContentView(root);window.setLayout(-1,-1);
     }
     @Override protected void onStart(){super.onStart();if(!started){started=true;showCurrent();}}

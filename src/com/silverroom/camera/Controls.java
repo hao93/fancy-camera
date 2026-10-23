@@ -5,7 +5,10 @@ import android.graphics.*;
 import android.view.*;
 
 final class Controls {
-    static final int INK=Color.rgb(18,21,20),PANEL=Color.rgb(28,32,30),CREAM=Color.rgb(235,226,203),MUTED=Color.rgb(148,155,142),AMBER=Color.rgb(232,171,79),CYAN=Color.rgb(95,184,174),MAGENTA=Color.rgb(211,111,151);
+    static int INK,PANEL,CREAM,MUTED,AMBER,CYAN,MAGENTA;
+    static {theme();}
+    static void theme(){INK=tone(AppTheme.BG);PANEL=tone(AppTheme.SURFACE);CREAM=tone(AppTheme.TEXT);MUTED=tone(AppTheme.SECONDARY);AMBER=tone(AppTheme.ACCENT);CYAN=tone(AppTheme.TEAL);MAGENTA=tone(AppTheme.PINK);}
+    static int tone(int role){return AppTheme.color(role);}
     interface Change {void value(float value);}
     static class ToolButton extends View {
         static final int FLASH=0,GRID=1,TIMER=2,FRAME=3;
@@ -14,7 +17,7 @@ final class Controls {
         void state(boolean on,String value,String description){active=on;badge=value;setContentDescription(description);setTooltipText(description);invalidate();}
         @Override protected void onDraw(Canvas c){
             float density=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity;
-            p.setStyle(Paint.Style.FILL);p.setColor(active?0xff2c291e:PANEL);c.drawRoundRect(0,0,getWidth(),getHeight(),density*10,density*10,p);
+            p.setStyle(Paint.Style.FILL);p.setColor(active?tone(AppTheme.ACTIVE):PANEL);c.drawRoundRect(0,0,getWidth(),getHeight(),density*10,density*10,p);
             p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextSize(sp*11);float textWidth=badge.isEmpty()?0:p.measureText(badge)+6*density,cx=(getWidth()-textWidth)/2,cy=getHeight()/2f;
             c.save();c.translate(cx-9*density,cy-9*density);c.scale(density*.75f,density*.75f);p.setColor(active?AMBER:MUTED);p.setStrokeWidth(1.7f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setStyle(Paint.Style.STROKE);
             if(kind==FLASH){Path bolt=new Path();bolt.moveTo(14,2);bolt.lineTo(5,14);bolt.lineTo(11,14);bolt.lineTo(9,22);bolt.lineTo(19,9);bolt.lineTo(13,9);bolt.close();c.drawPath(bolt,p);if(!active)c.drawLine(3,3,21,21,p);}
@@ -40,10 +43,10 @@ final class Controls {
         void set(float v){value=Math.max(min,Math.min(max,v));setContentDescription(label+" "+String.format(java.util.Locale.US,max<=3?"%+.1f":"%+.0f",value)+"，顺时针旋转增加，逆时针旋转减少");invalidate();}
         @Override protected void onDraw(Canvas c){
             float w=getWidth(),h=getHeight(),cx=w/2,cy=h/2,r=Math.min(w,h)*.43f;
-            p.setStyle(Paint.Style.FILL);p.setShader(new RadialGradient(cx-r*.3f,cy-r*.4f,r*1.7f,new int[]{0xff52564e,0xff222621,0xff10130f},null,Shader.TileMode.CLAMP));c.drawCircle(cx,cy,r,p);p.setShader(null);
-            p.setColor(0xff5b6053);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);c.drawCircle(cx,cy,r,p);p.setColor(0xff0c0e0c);c.drawCircle(cx,cy,r*.76f,p);
+            p.setStyle(Paint.Style.FILL);p.setShader(new RadialGradient(cx-r*.3f,cy-r*.4f,r*1.7f,new int[]{tone(AppTheme.DIAL_HI),tone(AppTheme.DIAL_MID),tone(AppTheme.DIAL_LOW)},null,Shader.TileMode.CLAMP));c.drawCircle(cx,cy,r,p);p.setShader(null);
+            p.setColor(tone(AppTheme.DIAL_BORDER));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);c.drawCircle(cx,cy,r,p);p.setColor(tone(AppTheme.DIAL_INNER));c.drawCircle(cx,cy,r*.76f,p);
             c.save();c.rotate(value/(max-min)*270,cx,cy);
-            for(int i=0;i<48;i++){double a=i*Math.PI/24;float rr=r*(i%4==0?.78f:.86f);p.setColor(i%4==0?CREAM:0xff777c6e);p.setStrokeWidth(i%4==0?2:1);c.drawLine(cx+(float)Math.sin(a)*rr,cy-(float)Math.cos(a)*rr,cx+(float)Math.sin(a)*r*.96f,cy-(float)Math.cos(a)*r*.96f,p);}c.restore();
+            for(int i=0;i<48;i++){double a=i*Math.PI/24;float rr=r*(i%4==0?.78f:.86f);p.setColor(i%4==0?CREAM:tone(AppTheme.TICK));p.setStrokeWidth(i%4==0?2:1);c.drawLine(cx+(float)Math.sin(a)*rr,cy-(float)Math.cos(a)*rr,cx+(float)Math.sin(a)*r*.96f,cy-(float)Math.cos(a)*r*.96f,p);}c.restore();
             p.setStyle(Paint.Style.FILL);p.setColor(accent);Path mark=new Path();mark.moveTo(cx,cy-r+2);mark.lineTo(cx-4,cy-r-6);mark.lineTo(cx+4,cy-r-6);mark.close();c.drawPath(mark,p);
             p.setTypeface(Typeface.create("monospace",Typeface.BOLD));p.setTextAlign(Paint.Align.CENTER);p.setTextSize(r*.38f);p.setColor(CREAM);String v=max<=3?String.format(java.util.Locale.US,"%+.1f",value):String.format(java.util.Locale.US,"%+.0f",value);c.drawText(v,cx,cy+2,p);p.setTypeface(Typeface.create("sans-serif",0));p.setTextSize(r*.21f);p.setColor(accent);c.drawText(label,cx,cy+r*.38f,p);
         }
@@ -62,7 +65,7 @@ final class Controls {
     static class Shutter extends View {
         Paint p=new Paint(3);boolean busy;Shutter(Context c){super(c);setContentDescription("快门，拍摄照片");setFocusable(true);}
         @Override protected void drawableStateChanged(){super.drawableStateChanged();invalidate();}
-        @Override protected void onDraw(Canvas c){float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(cx,cy)*.83f,d=getResources().getDisplayMetrics().density;p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(d*2.6f);p.setColor(0xfff2f0e9);c.drawCircle(cx,cy,r,p);p.setStyle(Paint.Style.FILL);p.setColor(busy?0xffa5a69d:isPressed()?0xffd1d1c8:0xfff2f0e9);c.drawCircle(cx,cy,r-d*(isPressed()?7:5.5f),p);if(busy){p.setColor(INK);float side=r*.37f;c.drawRoundRect(cx-side,cy-side,cx+side,cy+side,d*4,d*4,p);}}
+        @Override protected void onDraw(Canvas c){float cx=getWidth()/2f,cy=getHeight()/2f,r=Math.min(cx,cy)*.83f,d=getResources().getDisplayMetrics().density;p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(d*2.6f);p.setColor(tone(AppTheme.SHUTTER));c.drawCircle(cx,cy,r,p);p.setStyle(Paint.Style.FILL);p.setColor(tone(busy?AppTheme.SHUTTER_BUSY:isPressed()?AppTheme.SHUTTER_PRESSED:AppTheme.SHUTTER));c.drawCircle(cx,cy,r-d*(isPressed()?7:5.5f),p);if(busy){p.setColor(INK);float side=r*.37f;c.drawRoundRect(cx-side,cy-side,cx+side,cy+side,d*4,d*4,p);}}
     }
     static class Guides extends View {
         Paint p=new Paint(3);boolean grid,locked;float fx=-1,fy=-1;long focusAt;final Runnable clearFocus=()->{fx=-1;invalidate();};

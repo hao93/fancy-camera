@@ -10,7 +10,7 @@ import android.widget.*;
 import static com.silverroom.camera.Controls.*;
 
 /** Exposure changes stay live; Done, Back and outside taps all keep the chosen value. */
-final class ExposurePicker extends Dialog {
+final class ExposurePicker extends ThemedDialog {
     final Activity owner;final Change change;float value;SeekBar slider;TextView number;
     ExposurePicker(Activity a,float ev,Change listener){super(a);owner=a;value=ExposureValue.clamp(ev);change=listener;}
     int dp(float n){return Math.round(n*owner.getResources().getDisplayMetrics().density);}

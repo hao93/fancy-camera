@@ -7,7 +7,7 @@ import android.view.*;
 import android.widget.*;
 import static com.silverroom.camera.Controls.*;
 
-final class StrengthPicker extends Dialog {
+final class StrengthPicker extends ThemedDialog {
     interface Change{void value(float value);}
     private final Activity owner;private final Change change;private final String film;private float value;private TextView number;private SeekBar slider;
     StrengthPicker(Activity a,String name,float strength,Change c){super(a);owner=a;film=name;value=FilmStrength.clamp(strength);change=c;}

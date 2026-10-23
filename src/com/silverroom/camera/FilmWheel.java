@@ -39,8 +39,8 @@ class FilmWheel extends View {
     @Override protected void onDetachedFromWindow(){cancelAnimation();releaseTouch();super.onDetachedFromWindow();}
     @Override protected void onDraw(Canvas c){
         float cx=getWidth()/2f,cy=getHeight()/2f,slot=pitch();
-        float half=dp(compact()?22:25);paint.setStyle(Paint.Style.FILL);paint.setColor(0xff25271f);c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(0xff86704a);c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);paint.setStyle(Paint.Style.FILL);
+        float half=dp(compact()?22:25);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);paint.setStyle(Paint.Style.FILL);
         for(int i=0;i<state.count();i++){
             float distance=i-state.position(),x=cx+distance*slot;if(x< -slot||x>getWidth()+slot)continue;
             float depth=Math.min(1.8f,Math.abs(distance)),scale=1-depth*.19f;int id=state.id(i);int alpha=Math.round((1-Math.min(.82f,depth*.43f))*(isEnabled()&&available(id)?255:75));boolean selected=i==state.index()&&available(id);
@@ -49,8 +49,8 @@ class FilmWheel extends View {
             paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?15:13));paint.setColor(selected?AMBER:CREAM);paint.setAlpha(alpha);c.drawText(title(id),0,dp(compact()?-1:1),paint);
             paint.setTypeface(Typeface.create("sans-serif",0));paint.setTextSize(sp(compact()?9:7));paint.setColor(MUTED);paint.setAlpha(alpha);c.drawText(subtitle(id),0,dp(compact()?14:16),paint);c.restore();
         }
-        paint.setAlpha(255);paint.setShader(new LinearGradient(0,0,dp(22),0,INK,0x00121514,Shader.TileMode.CLAMP));c.drawRect(0,0,dp(22),getHeight(),paint);
-        paint.setShader(new LinearGradient(getWidth()-dp(22),0,getWidth(),0,0x00121514,INK,Shader.TileMode.CLAMP));c.drawRect(getWidth()-dp(22),0,getWidth(),getHeight(),paint);paint.setShader(null);
+        paint.setAlpha(255);paint.setShader(new LinearGradient(0,0,dp(22),0,INK,(INK&0x00ffffff),Shader.TileMode.CLAMP));c.drawRect(0,0,dp(22),getHeight(),paint);
+        paint.setShader(new LinearGradient(getWidth()-dp(22),0,getWidth(),0,(INK&0x00ffffff),INK,Shader.TileMode.CLAMP));c.drawRect(getWidth()-dp(22),0,getWidth(),getHeight(),paint);paint.setShader(null);
         if(!compact()){paint.setColor(AMBER);Path marker=new Path();marker.moveTo(cx,cy+dp(28));marker.lineTo(cx-dp(2.5f),cy+dp(32));marker.lineTo(cx+dp(2.5f),cy+dp(32));marker.close();c.drawPath(marker,paint);}
     }
     @Override public boolean onTouchEvent(MotionEvent e){

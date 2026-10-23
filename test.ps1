@@ -49,6 +49,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Style-specific grain restraint regression fail
 if ($LASTEXITCODE -ne 0) { throw 'Update test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses UpdateRegression "$projectRoot\build\update-tests"
 if ($LASTEXITCODE -ne 0) { throw 'Release update policy or lifecycle trigger regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\AppTheme.java" "$projectRoot\tests\ThemeRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Appearance test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses ThemeRegression
+if ($LASTEXITCODE -ne 0) { throw 'Theme contrast, repeat switching or export isolation regression failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\PreviewQuality.java" "$projectRoot\tests\PreviewQualityRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Preview detail test compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\NegativeStore.java" "$projectRoot\src\com\silverroom\camera\NegativeSelection.java" "$projectRoot\src\com\silverroom\camera\PhotoViewport.java" "$projectRoot\src\com\silverroom\camera\PhotoBrowseGesture.java" "$projectRoot\tests\GalleryRegression.java"
