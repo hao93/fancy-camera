@@ -1,6 +1,14 @@
-# Fancy Camera · Android 2.1.0
+# Fancy Camera · Android 2.1.1
 
 以彩色暗房和机械相机为灵感的摄影应用，使用原生 Java、Camera2 和 OpenGL ES 2.0。拍摄与暗房离线运行，无第三方库、应用账号或广告；联网仅用于读取和下载 GitHub Release 更新。
+
+## 2.1.1：风格分组竖向滚轮
+
+拍摄页胶片行左侧可以上下滑动切换富士、徕卡、理光等大风格分组。当前分组在中间高亮，上下显示淡色邻项；拖动跨过档位时实时切换胶片组，松手以160ms动画归位。沿用原有分组选择逻辑，保留当前有效胶片或恢复该分组上次选择。轻点仍可打开完整分类菜单、查看款数及管理收藏；收藏非空时加入滚轮，空收藏不打断滑动。
+
+分类滚轮使用48×64dp区域，保持原有胶片行高度和左右48dp对称空间，中央胶片与快门继续对齐。黑白主题、放大字体、TalkBack前后滚动及键盘上下键均可操作。手势超过系统触摸阈值并以纵向为主才启动，横向滑动、多指、取消和归位动画中点按不误开菜单。拍摄时禁用，页面离开、弹窗打开及后台停止手势和动画。
+
+717项Java回归检查通过，含新增20项执行实际FilmGroupWheel的交互检查，覆盖实时切换与刷新、不连续跳档、点击菜单、方向识别、边界反向、空收藏、取消、禁用、生命周期、无障碍和主题/字体宽度；四套实际GLSL与四套mediump程序编译/链接通过。主机接口替身不代表vivo原生界面或触控手感实测，本次未安装手机。详见[2.1.1 Release说明](releases/2.1.1.md)。版本2.1.1 / code31，保留原包名和签名，发布GitHub Release，不通过ADB安装。
 
 ## 2.1.0：曝光手势、印相导出与构图辅助
 
@@ -391,7 +399,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 
 `install.ps1`验证APK包名/原签名和本地配置中已配对手机的序列号/型号，再执行`adb install -r --no-incremental`，并回读安装版本。无线连接失败会保留APK并明确提示安装未确认，不能将构建完成当作安装成功。配置在相邻`adb-state/device.json`，设备地址变化时更新该文件；同目录配对密钥不得打入源码包。单独验证连接而不安装：`install.ps1 -Apk <APK路径> -VerifyOnly`。
 
-Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.1.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.1.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
+Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.1.1.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.1.1.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
 
 每次发布先递增Manifest的versionCode及versionName，编写`releases/<版本>.md`，然后执行默认标准构建。`publish.ps1`只提交源文件白名单，拒绝私钥/构建产物/配对状态，推送main与`v<版本>`标签，生成标准APK、更新清单及校验值。上传草稿后读取GitHub返回的资源大小和digest逐一核验，通过才公开Release。已公开版本不覆盖、标签不强推；有变化应增加版本。仓库配置位于`release.json`，App内固定更新源位于`UpdatePolicy.java`，两处必须一致。
 
