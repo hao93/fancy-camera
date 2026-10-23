@@ -77,7 +77,7 @@ Check 'Version tag push'
 $releaseText=& $GitHubCli release view $tag --repo $repository --json isDraft,url 2>$null
 if($LASTEXITCODE -ne 0){& $GitHubCli release create $tag --repo $repository --verify-tag --target $head --title "Fancy Camera $version" --notes-file $NotesFile --draft;Check 'Draft release creation';$draft=$true}else{$draft=($releaseText | ConvertFrom-Json).isDraft}
 if($draft){& $GitHubCli release upload $tag $asset $updateFile $checksums --repo $repository --clobber;Check 'Draft asset upload'}
-$release=& $GitHubCli api "repos/$repository/releases/tags/$tag" | ConvertFrom-Json
+$release=& $GitHubCli release view $tag --repo $repository --json assets | ConvertFrom-Json
 Check 'Release asset readback'
 foreach($local in @($asset,$updateFile,$checksums)){$name=[IO.Path]::GetFileName($local);$uploaded=@($release.assets | Where-Object name -eq $name);$expected=(Get-FileHash -LiteralPath $local -Algorithm SHA256).Hash.ToLowerInvariant();if($uploaded.Count -ne 1 -or $uploaded[0].size -ne (Get-Item -LiteralPath $local).Length -or $uploaded[0].digest -ne "sha256:$expected"){throw "Release asset verification failed: $name; release is not published by this run"}}
 if($draft){& $GitHubCli release edit $tag --repo $repository --draft=false --latest;Check 'Release publication'}
