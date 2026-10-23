@@ -23,6 +23,7 @@ class FilmWheel extends View {
     protected float pitch(){return Math.max(dp(80),Math.min(dp(88),getWidth()/3.5f));}
     void strength(float value){strength=FilmStrength.clamp(value);describe();invalidate();}
     String title(int id){return FilmCatalog.reelName(id);}
+    void drawTitle(Canvas canvas,String text,float baseline,Paint brush,float slot){canvas.drawText(fit(text,slot-dp(12)),0,baseline,brush);}
     String subtitle(int id){return FilmCatalog.TAGS[id];}
     int color(int id){return FilmCatalog.COLORS[id];}
     boolean available(int id){return true;}
@@ -49,7 +50,7 @@ class FilmWheel extends View {
             float depth=Math.min(1.8f,Math.abs(distance)),scale=1-depth*.19f;int id=state.id(i);int alpha=Math.round((1-Math.min(.82f,depth*.43f))*(isEnabled()&&available(id)?255:75));boolean selected=i==state.index()&&available(id);
             c.save();c.translate(x,cy+dp(depth*2));c.scale(scale,scale);c.clipRect(-slot*.48f,-dp(28),slot*.48f,dp(28));
             if(!compact()){paint.setColor(color(id));paint.setAlpha(alpha);c.drawRoundRect(-dp(11),-dp(19),dp(11),-dp(16),dp(1.5f),dp(1.5f),paint);}
-            paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?15:12));paint.setColor(selected?AMBER:CREAM);paint.setAlpha(alpha);c.drawText(fit(title(id),slot-dp(12)),0,dp(compact()?-1:1),paint);
+            paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?15:12));paint.setColor(selected?AMBER:CREAM);paint.setAlpha(alpha);drawTitle(c,title(id),dp(compact()?-1:1),paint,slot);
             paint.setTypeface(Typeface.create("sans-serif",0));paint.setTextSize(sp(compact()?9:selected?10:8));paint.setColor(selected&&!compact()?AMBER:MUTED);paint.setAlpha(alpha);c.drawText(fit(selected&&!compact()?FilmStrength.percent(strength)+"%":subtitle(id),slot-dp(12)),0,dp(compact()?14:16),paint);c.restore();
         }
         paint.setAlpha(255);paint.setShader(new LinearGradient(0,0,dp(22),0,INK,(INK&0x00ffffff),Shader.TileMode.CLAMP));c.drawRect(0,0,dp(22),getHeight(),paint);

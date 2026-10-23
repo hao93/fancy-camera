@@ -12,14 +12,15 @@ final class Controls {
     interface Change {void value(float value);}
     static class ToolButton extends View {
         static final int FLASH=0,GRID=1,TIMER=2,FRAME=3;
-        final Paint p=new Paint(3);final int kind;boolean active;String badge="";
+        final Paint p=new Paint(3);final int kind;boolean active;String badge="";float iconAngle;
         ToolButton(Context c,int type){super(c);kind=type;setClickable(true);setFocusable(true);}
         void state(boolean on,String value,String description){active=on;badge=value;setContentDescription(description);setTooltipText(description);invalidate();}
+        void iconAngle(float value){iconAngle=value;invalidate();}
         @Override protected void onDraw(Canvas c){
             float density=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity;
             p.setStyle(Paint.Style.FILL);p.setColor(active?tone(AppTheme.ACTIVE):PANEL);c.drawRoundRect(0,0,getWidth(),getHeight(),density*10,density*10,p);
             p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextSize(sp*11);float textWidth=badge.isEmpty()?0:p.measureText(badge)+6*density,cx=(getWidth()-textWidth)/2,cy=getHeight()/2f;
-            c.save();c.translate(cx-9*density,cy-9*density);c.scale(density*.75f,density*.75f);p.setColor(active?AMBER:MUTED);p.setStrokeWidth(1.7f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setStyle(Paint.Style.STROKE);
+            c.save();c.rotate(iconAngle,cx,cy);c.translate(cx-9*density,cy-9*density);c.scale(density*.75f,density*.75f);p.setColor(active?AMBER:MUTED);p.setStrokeWidth(1.7f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setStyle(Paint.Style.STROKE);
             if(kind==FLASH){Path bolt=new Path();bolt.moveTo(14,2);bolt.lineTo(5,14);bolt.lineTo(11,14);bolt.lineTo(9,22);bolt.lineTo(19,9);bolt.lineTo(13,9);bolt.close();c.drawPath(bolt,p);if(!active)c.drawLine(3,3,21,21,p);}
             if(kind==GRID){c.drawRoundRect(3,3,21,21,2,2,p);c.drawLine(9,3,9,21,p);c.drawLine(15,3,15,21,p);c.drawLine(3,9,21,9,p);c.drawLine(3,15,21,15,p);}
             if(kind==TIMER){c.drawCircle(12,13,8,p);c.drawLine(9,2,15,2,p);c.drawLine(12,5,12,2,p);c.drawLine(18,6,20,4,p);c.drawLine(12,13,12,8,p);c.drawLine(12,13,16,14,p);}

@@ -29,7 +29,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     public void removePreview(PreviewSink sink){if(previewChannel.remove(sink))view.queueEvent(()->{if(previewChannel.get()==null&&popupReadback!=null)popupReadback.releaseTarget();});}
     public void histogram(HistogramSink sink){histogramChannel.set(sink);view.requestRender();}
     public void removeHistogram(HistogramSink sink){if(histogramChannel.remove(sink))view.queueEvent(()->{if(histogramChannel.get()==null&&histogramReadback!=null)histogramReadback.releaseTarget();});}
-    public interface Listener {void status(String text);void picture(Shot shot);void error(String message);void lensesChanged();void metering(int state,String reason);}
+    public interface Listener {void status(String text);void picture(Shot shot);void error(String message);void lensesChanged();void metering(int state,String reason);default void orientationChanged(int degrees){}}
     public static final class Shot {
         public final byte[] jpeg;public final int clockwise;public final float crop;public final String lens;public final CaptureOrientation.Snapshot orientation;public final File dng;public final CaptureInfo info;public final String rawNote;public final long capturedAt;public final int offsetMinutes;
         Shot(byte[] bytes,int rotation,float factor,String source,CaptureOrientation.Snapshot pose,File raw,CaptureInfo actual,String note,long when,int offset){capturedAt=when;offsetMinutes=offset;jpeg=bytes;clockwise=rotation;crop=factor;lens=source;orientation=pose;dng=raw;info=actual;rawNote=note;}
@@ -62,7 +62,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private final StringBuilder events=new StringBuilder();private String enumeration="";private long lastReport;
     public CameraEngine(Activity a,Listener l){
         activity=a;listener=l;manager=(CameraManager)a.getSystemService(Context.CAMERA_SERVICE);thread.start();handler=new Handler(thread.getLooper());
-        orientationListener=new OrientationEventListener(a){public void onOrientationChanged(int degrees){deviceOrientation=CaptureOrientation.update(degrees,deviceOrientation);}};
+        orientationListener=new OrientationEventListener(a){public void onOrientationChanged(int degrees){int next=CaptureOrientation.update(degrees,deviceOrientation);if(next!=deviceOrientation){deviceOrientation=next;if(active)listener.orientationChanged(next);}}};
         view=new GLSurfaceView(a);view.setEGLContextClientVersion(2);view.setPreserveEGLContextOnPause(true);view.setRenderer(this);view.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
         vertices.put(new float[]{-1,-1,0,0,1,-1,1,0,-1,1,0,1,1,1,1,1}).position(0);
     }
@@ -73,7 +73,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     public void quality(int mode){handler.post(()->{int next=mode==1?1:0;if(previewMode!=next&&!captureInFlight){previewMode=next;close();open();}});}
     public boolean available(float mm){return !front&&available.contains(LensPlan.base(mm));}
     public String unavailableLabel(float mm){return detected.contains(LensPlan.base(mm))?"不可用":"未检测";}
-    public boolean scanned(){return scanned;}public boolean front(){return front;}public float focal(){return requestedMm;}
+    public boolean scanned(){return scanned;}public boolean front(){return front;}public float focal(){return requestedMm;}public int deviceOrientation(){return deviceOrientation;}
     public void resume(){active=true;if(orientationListener.canDetectOrientation())orientationListener.enable();view.onResume();handler.post(()->{scan();open();});}
     public void pause(){active=false;orientationListener.disable();handler.post(this::close);view.onPause();}
     public void destroy(){orientationListener.disable();handler.post(()->{close();if(surface!=null)surface.release();if(texture!=null)texture.release();encoder.shutdown();previewWorker.shutdown();});thread.quitSafely();}
