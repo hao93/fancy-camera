@@ -11,7 +11,7 @@ final class Controls {
     static int tone(int role){return AppTheme.color(role);}
     interface Change {void value(float value);}
     static class ToolButton extends View {
-        static final int FLASH=0,GRID=1,TIMER=2,FRAME=3;
+        static final int FLASH=0,GRID=1,TIMER=2,FRAME=3,SETTINGS=4;
         final Paint p=new Paint(3);final int kind;boolean active;String badge="";float iconAngle;
         ToolButton(Context c,int type){super(c);kind=type;setClickable(true);setFocusable(true);}
         void state(boolean on,String value,String description){active=on;badge=value;setContentDescription(description);setTooltipText(description);invalidate();}
@@ -26,10 +26,11 @@ final class Controls {
             if(kind==GRID){c.drawRoundRect(3,3,21,21,2,2,p);c.drawLine(9,3,9,21,p);c.drawLine(15,3,15,21,p);c.drawLine(3,9,21,9,p);c.drawLine(3,15,21,15,p);}
             if(kind==TIMER){c.drawCircle(12,13,8,p);c.drawLine(9,2,15,2,p);c.drawLine(12,5,12,2,p);c.drawLine(18,6,20,4,p);c.drawLine(12,13,12,8,p);c.drawLine(12,13,16,14,p);}
             if(kind==FRAME){c.drawRoundRect(4,2,20,22,2,2,p);c.drawLine(8,7,16,7,p);c.drawLine(8,17,16,17,p);}
+            if(kind==SETTINGS){Path gear=new Path();for(int i=0;i<32;i++){double a=Math.toRadians(i*11.25);float r=i%4<2?10:8,x=12+(float)Math.cos(a)*r,y=12+(float)Math.sin(a)*r;if(i==0)gear.moveTo(x,y);else gear.lineTo(x,y);}gear.close();c.drawPath(gear,p);c.drawCircle(12,12,3,p);}
             c.restore();if(!badge.isEmpty()){p.setStyle(Paint.Style.FILL);p.setColor(active?AMBER:CREAM);p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextAlign(stacked?Paint.Align.CENTER:Paint.Align.LEFT);p.setTextSize(sp*12);Paint.FontMetrics fm=p.getFontMetrics();c.drawText(badge,stacked?getWidth()/2f:cx+16*density,stacked?getHeight()-5*density-fm.descent:cy-(fm.ascent+fm.descent)/2,p);}
         }
         private float paddedBadgeWidth(float sp){p.setTextSize(12*sp);return p.measureText(badge);}
-        @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.ImageButton");info.setCheckable(kind!=FRAME);info.setChecked(active);}
+        @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.ImageButton");info.setCheckable(kind!=FRAME&&kind!=SETTINGS);info.setChecked(active);}
     }
     static class ExposureButton extends View {
         final Paint p=new Paint(3);float value;

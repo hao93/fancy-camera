@@ -134,6 +134,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Capture workflow test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses CaptureWorkflowRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Background capture queue or shutter release regression failed' }
 
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\NavigationHierarchyRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Navigation hierarchy test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses NavigationHierarchyRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Camera/gallery/darkroom hierarchy or capture layout regression failed' }
+
 if ($ShaderValidator) {
     & $ShaderValidator -l "$projectRoot\build\shader-tests\camera.vert" "$projectRoot\build\shader-tests\yuv.frag"
     if ($LASTEXITCODE -ne 0) { throw 'YUV shader compilation/link validation failed' }

@@ -36,7 +36,7 @@ public final class ControlRotationProbe {
         check(fits,"All seven focal lengths fit the compact numeric region at portrait, landscape and animation angles with enlarged fonts");
         FilmWheel film=new FilmWheel(new Context());Canvas filmCanvas=new Canvas();film.onDraw(filmCanvas);
         check(filmCanvas.textAngles.stream().allMatch(v->near(v,0)),"Film names, percentages and Chinese descriptions retain their unrotated film renderer");
-        boolean toolIcons=true,badges=true,backgrounds=true;for(int theme=0;theme<2;theme++){AppTheme.select(theme);for(int kind=0;kind<4;kind++)for(float angle:new float[]{-90,90,180}){
+        boolean toolIcons=true,badges=true,backgrounds=true;for(int theme=0;theme<2;theme++){AppTheme.select(theme);for(int kind=0;kind<5;kind++)for(float angle:new float[]{-90,90,180}){
             Controls.ToolButton tool=new Controls.ToolButton(new Context(),kind);tool.size(76,48);tool.state(true,kind==3?"铺满":kind==2?"10s":kind==0?"A":"", "工具");tool.iconAngle(angle);Canvas draw=new Canvas();tool.onDraw(draw);
             backgrounds&=near(draw.shapeAngles.get(0),0);for(int i=1;i<draw.shapeAngles.size();i++)toolIcons&=sameAngle(draw.shapeAngles.get(i),angle);for(float path:draw.pathAngles)toolIcons&=sameAngle(path,angle);for(float text:draw.textAngles)badges&=near(text,0);
         }}

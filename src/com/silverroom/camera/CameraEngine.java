@@ -72,7 +72,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     }
     private boolean sameTreatment(Film.Settings a,Film.Settings b){Film.Settings copy=previewSettings(a);copy.stock=b.stock;return Arrays.equals(Film.parameters(copy),Film.parameters(b))&&copy.strength==b.strength&&copy.skin==b.skin&&copy.adaptiveGrain==b.adaptiveGrain;}private Film.Settings previewSettings(Film.Settings settings){Film.Settings copy=settings.copy();copy.iso=lastIso;copy.exposure+=previewFine();return copy;}
     private void cameraError(String reason){emitUi(CameraUiState.ERROR,reason);listener.error(reason);}
-    public ExposureLimits exposureLimits(){return exposureLimits;}public int iso(){return lastIso;}public int plannedEdge(float aspect){Size size=photoSize;return ImageQuality.outputEdge(size.getWidth(),size.getHeight(),LensPlan.crop(requestedMm),aspect);}
+    public ExposureLimits exposureLimits(){return exposureLimits;}public float exposureDisplay(){return exposurePlan.display;}public int iso(){return lastIso;}public int plannedEdge(float aspect){Size size=photoSize;return ImageQuality.outputEdge(size.getWidth(),size.getHeight(),LensPlan.crop(requestedMm),aspect);}
     public String rawStatus(){return rawState;}
     public void raw(boolean enabled){handler.post(()->{if(rawWanted==enabled)return;rawWanted=enabled;rawState=enabled?"正在检测当前镜头RAW能力":"RAW已关闭";if(!captureInFlight){close();open();}});}
     public void quality(int mode){handler.post(()->{int next=mode==1?1:0;if(previewMode!=next&&!captureInFlight){previewMode=next;close();open();}});}
@@ -447,12 +447,13 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         if(next==MeteringLock.LOCKED){lockDistance=actual.get(CaptureResult.LENS_FOCUS_DISTANCE);lockExposure=actual.get(CaptureResult.SENSOR_EXPOSURE_TIME);lockIso=actual.get(CaptureResult.SENSOR_SENSITIVITY);lockDuration=actual.get(CaptureResult.SENSOR_FRAME_DURATION);if(before!=next){event("AE/AF 结果已确认："+route.source()+" / 分时拍照传递 "+canTransferLock());listener.metering(next,"");}}
     }
     public void focus(float x,float y){handler.post(()->{
-        if(request==null||session==null||stillOnly||route==null||captureInFlight)return;clearMetering();long ticket=++focusEpoch;
-        try{controls(request);Rect a=chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);if(a!=null)xFocus(request,x,y,a);if(!has(chars.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES),CaptureRequest.CONTROL_AF_MODE_AUTO)){update();return;}
+        if(request==null||session==null||stillOnly||route==null||!previewReady||captureInFlight)return;clearMetering();ev=exposurePlan.hardware;long ticket=++focusEpoch;
+        try{controls(request);Rect a=chars.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);if(a!=null)xFocus(request,x,y,a,false);if(!has(chars.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES),CaptureRequest.CONTROL_AF_MODE_AUTO)){update();return;}
             setBoth(request,CaptureRequest.CONTROL_AF_MODE,CaptureRequest.CONTROL_AF_MODE_AUTO);setBoth(request,CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_CANCEL);session.capture(request.build(),null,handler);setBoth(request,CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_START);session.capture(request.build(),null,handler);setBoth(request,CaptureRequest.CONTROL_AF_TRIGGER,CaptureRequest.CONTROL_AF_TRIGGER_IDLE);session.setRepeatingRequest(request.build(),repeating,handler);handler.postDelayed(()->{if(ticket==focusEpoch&&!meter.active())update();},2500);
         }catch(Exception ignored){}
     });}
-    private void xFocus(CaptureRequest.Builder b,float x,float y,Rect a){
+    private void xFocus(CaptureRequest.Builder b,float x,float y,Rect a){xFocus(b,x,y,a,true);}
+    private void xFocus(CaptureRequest.Builder b,float x,float y,Rect a,boolean meterExposure){
         Size buffer=previewSize;YuvFrame pixels=yuvFrame;int bw=yuvPreview&&pixels!=null?pixels.sourceWidth:buffer.getWidth(),bh=yuvPreview&&pixels!=null?pixels.sourceHeight:buffer.getHeight();
         float[] point=PreviewFraming.point(x,y,sensorOrientation,bw,bh,width,height,previewCrop);x=point[0];y=point[1];
         if(front)x=1-x;float sx=x,sy=y;if(sensorOrientation==90){sx=y;sy=1-x;}else if(sensorOrientation==270){sx=1-y;sy=x;}else if(sensorOrientation==180){sx=1-x;sy=1-y;}
@@ -460,7 +461,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         MeteringRectangle[] area={new MeteringRectangle(left,top,size,size,1000)};
         Integer afCount=chars.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AF),aeCount=chars.get(CameraCharacteristics.CONTROL_MAX_REGIONS_AE);
         if(afCount!=null&&afCount>0){if(route.physical==null)b.set(CaptureRequest.CONTROL_AF_REGIONS,area);else physical(b,CaptureRequest.CONTROL_AF_REGIONS,area);}
-        if(aeCount!=null&&aeCount>0){if(route.physical==null)b.set(CaptureRequest.CONTROL_AE_REGIONS,area);else physical(b,CaptureRequest.CONTROL_AE_REGIONS,area);}
+        if(meterExposure&&aeCount!=null&&aeCount>0){if(route.physical==null)b.set(CaptureRequest.CONTROL_AE_REGIONS,area);else physical(b,CaptureRequest.CONTROL_AE_REGIONS,area);}
     }
     private void close(){previewAppliedEv=null;exposureTimestamp=0;previewExposure=null;exposureFrames=0;exposureLimits=ExposureLimits.NONE;lastIso=0;if(rawCapture!=null)rawCapture.cancel();rawCapture=null;if(rawReader!=null)rawReader.close();rawReader=null;clearMetering();generation++;sessionGeneration++;handoff.cancel();pendingStill=null;pendingShot=null;captureInFlight=false;previewReady=false;previewResultSeen=false;externalFrameReady=false;frame=false;yuvFrame=null;if(session!=null)session.close();session=null;if(device!=null){CameraDevice old=device;device=null;retire(old);}request=null;if(reader!=null)reader.close();reader=null;if(previewReader!=null)previewReader.close();previewReader=null;}
     public void refreshFilm(){view.requestRender();}
