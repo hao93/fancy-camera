@@ -1,6 +1,16 @@
-# Fancy Camera · Android 2.2.0
+# Fancy Camera · Android 2.2.1
 
 以彩色暗房和机械相机为灵感的摄影应用，使用原生 Java、Camera2 和 OpenGL ES 2.0。拍摄与暗房离线运行，无第三方库、应用账号或广告；联网仅用于读取和下载 GitHub Release 更新。
+
+## 2.2.1：主摄首帧与切镜黑屏修复
+
+修复2.2.0 PRIVATE路径的首帧相互等待：此前预览未就绪时GL提前返回，没有读取SurfaceTexture，而就绪又需要之后的画面回调；画面早于拍摄结果时可能占满缓冲队列，让主摄持续黑屏。现在GL每次绘制都先执行latchExternalFrame，再决定画面是否就绪；帧回调只通知读取，不依赖元数据是否已经到达。实际读取和CaptureResult可按任意顺序完成，两者齐备后才放行预览。
+
+GL读取结果在相机Handler上核对会话代次、SurfaceTexture身份、前台状态、设备及会话，再标记可用。换镜、重建EGL、暂停或拍摄专用会话的迟到回调被丢弃，读取异常走恢复流程。重新点击相同焦段时，如果设备仍未打开，会重新请求打开并触发绘制，不再直接返回。
+
+PreviewHold隔离此前其他GL操作留下的错误，失败复制不丢弃同尺寸的上一张完整画面；首次缓存失败则清除分配尺寸，在下一帧重试。连续焦段、预设吸附、物理镜头边界和同镜头不重连均保留；跨物理镜头仍以最近完整画面等待新帧，不把缓存当作相机已就绪的证据。照片清晰度与镜头选择规则不降级。
+
+780项Java回归通过，新增15项真实读取/就绪/绘制保护方法的受控检查，覆盖缓冲释放前无法返回结果的顺序、画面/结果各自先到、会话和纹理失效、后台回调、异常恢复、同焦段重试及GPU缓存失败恢复。四套原有GLSL、四套mediump兼容与保留帧程序编译/链接通过。主机接口替身不能证明vivo真机主摄已恢复或完全无黑屏，本次未安装或操作手机。详见[2.2.1 Release说明](releases/2.2.1.md)。版本2.2.1 / code34，保留原包名和签名，发布GitHub Release，不通过ADB安装。
 
 ## 2.2.0：连续焦段与取景切换优化
 
@@ -419,7 +429,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 
 `install.ps1`验证APK包名/原签名和本地配置中已配对手机的序列号/型号，再执行`adb install -r --no-incremental`，并回读安装版本。无线连接失败会保留APK并明确提示安装未确认，不能将构建完成当作安装成功。配置在相邻`adb-state/device.json`，设备地址变化时更新该文件；同目录配对密钥不得打入源码包。单独验证连接而不安装：`install.ps1 -Apk <APK路径> -VerifyOnly`。
 
-Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.2.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.2.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
+Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.2.1.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.2.1.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
 
 每次发布先递增Manifest的versionCode及versionName，编写`releases/<版本>.md`，然后执行默认标准构建。`publish.ps1`只提交源文件白名单，拒绝私钥/构建产物/配对状态，推送main与`v<版本>`标签，生成标准APK、更新清单及校验值。上传草稿后读取GitHub返回的资源大小和digest逐一核验，通过才公开Release。已公开版本不覆盖、标签不强推；有变化应增加版本。仓库配置位于`release.json`，App内固定更新源位于`UpdatePolicy.java`，两处必须一致。
 

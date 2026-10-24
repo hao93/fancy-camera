@@ -15,9 +15,9 @@ final class PreviewHold {
     private void prepare(){if(program!=0)return;int v=shader(GLES20.GL_VERTEX_SHADER,VERTEX),f=shader(GLES20.GL_FRAGMENT_SHADER,FRAGMENT);int p=GLES20.glCreateProgram();GLES20.glAttachShader(p,v);GLES20.glAttachShader(p,f);GLES20.glLinkProgram(p);GLES20.glDeleteShader(v);GLES20.glDeleteShader(f);int[] ok=new int[1];GLES20.glGetProgramiv(p,GLES20.GL_LINK_STATUS,ok,0);if(ok[0]==0){GLES20.glDeleteProgram(p);throw new IllegalStateException("Hold link");}program=p;}
     void save(int w,int h){
         if(w<=0||h<=0||w>4096||h>4096){valid=false;return;}
-        try{GLES20.glActiveTexture(GLES20.GL_TEXTURE2);if(texture==0){int[] id=new int[1];GLES20.glGenTextures(1,id,0);texture=id[0];}GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,texture);
+        try{for(int i=0;i<8&&GLES20.glGetError()!=GLES20.GL_NO_ERROR;i++){}GLES20.glActiveTexture(GLES20.GL_TEXTURE2);if(texture==0){int[] id=new int[1];GLES20.glGenTextures(1,id,0);texture=id[0];}GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,texture);
             if(w!=width||h!=height){valid=false;width=w;height=h;GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D,0,GLES20.GL_RGBA,w,h,0,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,null);}
-            GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D,0,0,0,0,0,w,h);valid=GLES20.glGetError()==GLES20.GL_NO_ERROR;
+            GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D,0,0,0,0,0,w,h);if(GLES20.glGetError()==GLES20.GL_NO_ERROR)valid=true;else if(!valid){width=height=0;}
         }finally{GLES20.glActiveTexture(GLES20.GL_TEXTURE0);}
     }
     boolean draw(int w,int h){

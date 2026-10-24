@@ -54,7 +54,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private volatile Set<Integer> available=Collections.emptySet(),detected=Collections.emptySet();private volatile boolean front,scanned,previewReady;
     private volatile float requestedMm=23,previewCrop=1;private volatile boolean active;private boolean splitPreview,stillOnly,captureInFlight;private volatile boolean previewResultSeen,externalFrameReady;
     private final MeteringLock meter=new MeteringLock();private long focusEpoch;private float lockX=.5f,lockY=.5f;private Float lockDistance;private Long lockExposure,lockDuration;private Integer lockIso;
-    private int generation,sessionGeneration,flashMode;private float ev;private Runnable pendingStill;private ShotSpec pendingShot;
+    private int generation,flashMode;private volatile int sessionGeneration;private float ev;private Runnable pendingStill;private ShotSpec pendingShot;
     private volatile boolean frame;private volatile int sensorOrientation=90;private volatile Size previewSize=new Size(1440,1080);
     private volatile int width=1,height=1;private int texId,program,yuvProgram;private final int[] yuvTextures=new int[2];private ByteBuffer yuvUpload;private final float[] st=new float[16],model=new float[16];
     private volatile int maxTextureEdge=2048;private YuvFrame uploadedFrame;
@@ -159,7 +159,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     public void focal(float mm){LensPlan.base(mm);targetMm=Math.round(mm*10)/10f;if(zoomQueued.compareAndSet(false,true))handler.postDelayed(applyZoom,40);}
     private void applyFocal(float mm){
         if(captureInFlight||front||!available.contains(LensPlan.base(mm))){if(targetMm==mm)targetMm=requestedMm;listener.lensesChanged();return;}
-        if(Math.abs(requestedMm-mm)<.049f)return;
+        if(Math.abs(requestedMm-mm)<.049f){if(device==null&&active)open();view.requestRender();return;}
         Route next=LensPlan.select(routes,mm,false,failed);if(next==null){if(targetMm==mm)targetMm=requestedMm;return;}
         boolean reopen=route==null||!next.key().equals(route.key());boolean locked=meter.active();if(reopen)previewReady=false;
         clearMetering();requestedMm=mm;previewCrop=LensPlan.crop(mm);listener.lensesChanged();
@@ -407,17 +407,26 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         GLES20.glGenTextures(2,yuvTextures,0);for(int id:yuvTextures){GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);}
         int[] t=new int[1];GLES20.glGenTextures(1,t,0);texId=t[0];GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,texId);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);
         final Surface oldSurface=surface;final SurfaceTexture oldTexture=texture;
-        texture=new SurfaceTexture(texId);texture.setOnFrameAvailableListener(s->{frame=true;if(!yuvPreview&&previewResultSeen){externalFrameReady=true;handler.post(this::markPreviewReady);}view.requestRender();});surface=new Surface(texture);handler.post(()->{close();if(oldSurface!=null)oldSurface.release();if(oldTexture!=null)oldTexture.release();open();});
+        texture=new SurfaceTexture(texId);texture.setOnFrameAvailableListener(s->{if(s!=texture)return;frame=true;view.requestRender();});surface=new Surface(texture);handler.post(()->{close();if(oldSurface!=null)oldSurface.release();if(oldTexture!=null)oldTexture.release();open();});
     }
     @Override public void onSurfaceChanged(GL10 gl,int w,int h){width=w;height=h;GLES20.glViewport(0,0,w,h);}
+    private void latchExternalFrame(){
+        SurfaceTexture source=texture;if(source==null||yuvPreview||!frame)return;
+        // Drain BufferQueue before checking readiness. Otherwise early buffers can block
+        // the producer before its result callback, leaving both sides waiting forever.
+        frame=false;final int epoch=sessionGeneration;
+        try{source.updateTexImage();source.getTransformMatrix(st);
+            handler.post(()->{if(epoch!=sessionGeneration||source!=texture||!active||stillOnly||yuvPreview||device==null||session==null)return;externalFrameReady=true;markPreviewReady();});
+        }catch(RuntimeException error){handler.post(()->{if(epoch==sessionGeneration&&active&&source==texture)recover("PRIVATE取景读取失败："+error.getMessage());});}
+    }
     @Override public void onDrawFrame(GL10 gl){
+        latchExternalFrame();
         boolean raw=yuvPreview;YuvFrame pixels=yuvFrame;
         if(!active||texture==null||!previewReady||(raw&&(pixels==null||!PreviewQuality.covers(pixels.sourceWidth,pixels.sourceHeight,pixels.roi,previewCrop)))){
             if(active&&previewHold!=null&&previewHold.draw(width,height))return;
             GLES20.glClearColor(.04f,.045f,.04f,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);return;
         }
         GLES20.glClearColor(.04f,.045f,.04f,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        if(!raw&&frame){texture.updateTexImage();texture.getTransformMatrix(st);frame=false;}
         int current=raw?yuvProgram:program;GLES20.glUseProgram(current);grainTexture.bind(current);
         int displayDegrees=activity.getDisplay()==null?0:activity.getDisplay().getRotation()*90;
         if(raw){
