@@ -14,6 +14,7 @@ final class HistogramPicker extends ThemedDialog {
     int dp(float n){return Math.round(n*owner.getResources().getDisplayMetrics().density);}
     int target(){return UiSpec.toolHeight(owner.getResources().getConfiguration().fontScale);}
     TextView text(String value,int size,int color){TextView t=new TextView(owner);t.setText(value);t.setTextSize(Math.max(UiSpec.CAPTION,size));t.setFontFeatureSettings("tnum");t.setTextColor(color);t.setIncludeFontPadding(false);t.setGravity(Gravity.CENTER_VERTICAL);return t;}
+    @Override protected boolean keepPreviewVisible(){return true;}
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);setCanceledOnTouchOutside(true);
         LinearLayout root=new LinearLayout(owner);root.setOrientation(1);root.setPadding(dp(20),dp(14),dp(20),dp(22));GradientDrawable background=new GradientDrawable();background.setColor(INK);background.setCornerRadius(dp(UiSpec.RADIUS));root.setBackground(background);

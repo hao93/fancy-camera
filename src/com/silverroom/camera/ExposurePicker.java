@@ -18,6 +18,7 @@ final class ExposurePicker extends ThemedDialog {
     TextView text(String value,int size,int color){TextView t=new TextView(owner);t.setText(value);t.setTextSize(Math.max(UiSpec.CAPTION,size));t.setFontFeatureSettings("tnum");t.setTextColor(color);t.setIncludeFontPadding(false);t.setGravity(Gravity.CENTER);return t;}
     GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
     void choose(float ev){float next=ExposureScale.snap(ev,limits);if(next!=value){value=next;change.value(value);number.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);}number.setText(ExposureValue.label(value));slider.setProgress(ExposureScale.progress(value,limits));}
+    @Override protected boolean keepPreviewVisible(){return true;}
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);setCanceledOnTouchOutside(true);LinearLayout root=new LinearLayout(owner);root.setOrientation(1);root.setPadding(dp(20),dp(14),dp(20),dp(22));root.setBackground(bg(INK,UiSpec.RADIUS));
         LinearLayout header=new LinearLayout(owner);TextView title=text("曝光补偿",20,CREAM);title.setGravity(Gravity.CENTER_VERTICAL);header.addView(title,new LinearLayout.LayoutParams(0,dp(target()),1));TextView done=text("完成",14,AMBER);header.addView(done,new LinearLayout.LayoutParams(dp(52),dp(target())));done.setOnClickListener(v->dismiss());root.addView(header);

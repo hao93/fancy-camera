@@ -139,6 +139,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Navigation hierarchy test compilation failed' 
 & "$jdkRoot\bin\java.exe" -cp $testClasses NavigationHierarchyRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Camera/gallery/darkroom hierarchy or capture layout regression failed' }
 
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\PreviewPanelRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Preview panel test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses PreviewPanelRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Undimmed preview panel or single-instance lifecycle regression failed' }
+
 if ($ShaderValidator) {
     & $ShaderValidator -l "$projectRoot\build\shader-tests\camera.vert" "$projectRoot\build\shader-tests\yuv.frag"
     if ($LASTEXITCODE -ne 0) { throw 'YUV shader compilation/link validation failed' }

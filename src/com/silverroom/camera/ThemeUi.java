@@ -30,7 +30,7 @@ final class ThemeUi {
     }
     private static ColorStateList tint(ColorStateList value,int from,int to){return value==null?null:ColorStateList.valueOf(AppTheme.remap(value.getDefaultColor(),from,to));}
     static void refresh(View view,int from,int to){
-        Drawable background=view.getBackground();if(background instanceof Surface)((Surface)background).remap(from,to);else if(background instanceof ColorDrawable)((ColorDrawable)background).setColor(AppTheme.remap(((ColorDrawable)background).getColor(),from,to));
+        Drawable background=view.getBackground();if(background instanceof InsetDrawable)background=((InsetDrawable)background).getDrawable();if(background instanceof Surface)((Surface)background).remap(from,to);else if(background instanceof ColorDrawable)((ColorDrawable)background).setColor(AppTheme.remap(((ColorDrawable)background).getColor(),from,to));
         if(view instanceof TextView){TextView text=(TextView)view;text.setTextColor(tint(text.getTextColors(),from,to));text.setHintTextColor(tint(text.getHintTextColors(),from,to));text.setHighlightColor(AppTheme.color(AppTheme.ACTIVE));}
         if(view instanceof SeekBar){SeekBar slider=(SeekBar)view;slider.setProgressTintList(ColorStateList.valueOf(Controls.AMBER));slider.setProgressBackgroundTintList(ColorStateList.valueOf(AppTheme.color(AppTheme.BORDER)));slider.setThumbTintList(ColorStateList.valueOf(Controls.CREAM));}
         if(view instanceof Switch)tintSwitch((Switch)view);
