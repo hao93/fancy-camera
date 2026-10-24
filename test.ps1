@@ -7,7 +7,7 @@ if (-not $jdkRoot) {
 }
 $testClasses = Join-Path $projectRoot 'build\test-classes'
 New-Item -ItemType Directory -Force $testClasses | Out-Null
-& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\ZoomScale.java" "$projectRoot\src\com\silverroom\camera\YuvFrames.java" "$projectRoot\src\com\silverroom\camera\CameraHandoff.java" "$projectRoot\src\com\silverroom\camera\YuvGeometry.java" "$projectRoot\src\com\silverroom\camera\CameraShaders.java" "$projectRoot\src\com\silverroom\camera\CaptureOrientation.java" "$projectRoot\src\com\silverroom\camera\FilmGrain.java" "$projectRoot\src\com\silverroom\camera\FilmCatalog.java" "$projectRoot\src\com\silverroom\camera\FilmGroups.java" "$projectRoot\src\com\silverroom\camera\FilterShelf.java" "$projectRoot\tests\OpticalPolicyTest.java" "$projectRoot\tests\PipelineRegression.java" "$projectRoot\tests\PhotoFeaturesRegression.java"
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\UiSpec.java" "$projectRoot\src\com\silverroom\camera\CameraUiState.java" "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\ZoomScale.java" "$projectRoot\src\com\silverroom\camera\YuvFrames.java" "$projectRoot\src\com\silverroom\camera\CameraHandoff.java" "$projectRoot\src\com\silverroom\camera\YuvGeometry.java" "$projectRoot\src\com\silverroom\camera\CameraShaders.java" "$projectRoot\src\com\silverroom\camera\CaptureOrientation.java" "$projectRoot\src\com\silverroom\camera\FilmGrain.java" "$projectRoot\src\com\silverroom\camera\FilmCatalog.java" "$projectRoot\src\com\silverroom\camera\FilmGroups.java" "$projectRoot\src\com\silverroom\camera\FilterShelf.java" "$projectRoot\tests\OpticalPolicyTest.java" "$projectRoot\tests\PipelineRegression.java" "$projectRoot\tests\PhotoFeaturesRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\PreviewQuality.java" "$projectRoot\src\com\silverroom\camera\ImageQuality.java" "$projectRoot\src\com\silverroom\camera\FrameFormat.java"
 if ($LASTEXITCODE -ne 0) { throw 'Quality helper compilation failed' }
@@ -119,6 +119,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Capture orientation or filter menu regression 
 if ($LASTEXITCODE -ne 0) { throw 'Camera zoom test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses CameraZoomRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Continuous zoom or GPU frame hold regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\UiRefinementRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'UI refinement test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses UiRefinementRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Camera presentation, darkroom or confirmed photo gesture regression failed' }
+
 if ($ShaderValidator) {
     & $ShaderValidator -l "$projectRoot\build\shader-tests\camera.vert" "$projectRoot\build\shader-tests\yuv.frag"
     if ($LASTEXITCODE -ne 0) { throw 'YUV shader compilation/link validation failed' }

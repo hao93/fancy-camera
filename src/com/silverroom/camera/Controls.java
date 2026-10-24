@@ -18,22 +18,24 @@ final class Controls {
         void iconAngle(float value){iconAngle=value;invalidate();}
         @Override protected void onDraw(Canvas c){
             float density=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity;
-            p.setStyle(Paint.Style.FILL);p.setColor(active?tone(AppTheme.ACTIVE):PANEL);c.drawRoundRect(0,0,getWidth(),getHeight(),density*10,density*10,p);
-            p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextSize(sp*11);float textWidth=badge.isEmpty()?0:p.measureText(badge)+6*density,cx=(getWidth()-textWidth)/2,cy=getHeight()/2f;
-            c.save();c.rotate(iconAngle,cx,cy);c.translate(cx-9*density,cy-9*density);c.scale(density*.75f,density*.75f);p.setColor(active?AMBER:MUTED);p.setStrokeWidth(1.7f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setStyle(Paint.Style.STROKE);
+            p.setStyle(Paint.Style.FILL);p.setColor(active?tone(AppTheme.ACTIVE):PANEL);c.drawRoundRect(0,0,getWidth(),getHeight(),density*UiSpec.RADIUS,density*UiSpec.RADIUS,p);
+            boolean stacked=!badge.isEmpty()&&paddedBadgeWidth(sp)+26*density>getWidth();
+            p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextSize(sp*12);p.setFontFeatureSettings("tnum");float textWidth=badge.isEmpty()?0:p.measureText(badge)+6*density,cx=stacked?getWidth()/2f:(getWidth()-textWidth)/2,cy=stacked?14*density:getHeight()/2f;
+            c.save();c.rotate(iconAngle,cx,cy);c.translate(cx-10*density,cy-10*density);c.scale(density*20/24f,density*20/24f);p.setColor(active?AMBER:MUTED);p.setStrokeWidth(2f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setStyle(Paint.Style.STROKE);
             if(kind==FLASH){Path bolt=new Path();bolt.moveTo(14,2);bolt.lineTo(5,14);bolt.lineTo(11,14);bolt.lineTo(9,22);bolt.lineTo(19,9);bolt.lineTo(13,9);bolt.close();c.drawPath(bolt,p);if(!active)c.drawLine(3,3,21,21,p);}
             if(kind==GRID){c.drawRoundRect(3,3,21,21,2,2,p);c.drawLine(9,3,9,21,p);c.drawLine(15,3,15,21,p);c.drawLine(3,9,21,9,p);c.drawLine(3,15,21,15,p);}
             if(kind==TIMER){c.drawCircle(12,13,8,p);c.drawLine(9,2,15,2,p);c.drawLine(12,5,12,2,p);c.drawLine(18,6,20,4,p);c.drawLine(12,13,12,8,p);c.drawLine(12,13,16,14,p);}
             if(kind==FRAME){c.drawRoundRect(4,2,20,22,2,2,p);c.drawLine(8,7,16,7,p);c.drawLine(8,17,16,17,p);}
-            c.restore();if(!badge.isEmpty()){p.setStyle(Paint.Style.FILL);p.setColor(active?AMBER:CREAM);p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextAlign(Paint.Align.LEFT);p.setTextSize(sp*11);c.drawText(badge,cx+14*density,cy+sp*4,p);}
+            c.restore();if(!badge.isEmpty()){p.setStyle(Paint.Style.FILL);p.setColor(active?AMBER:CREAM);p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextAlign(stacked?Paint.Align.CENTER:Paint.Align.LEFT);p.setTextSize(sp*12);Paint.FontMetrics fm=p.getFontMetrics();c.drawText(badge,stacked?getWidth()/2f:cx+16*density,stacked?getHeight()-5*density-fm.descent:cy-(fm.ascent+fm.descent)/2,p);}
         }
+        private float paddedBadgeWidth(float sp){p.setTextSize(12*sp);return p.measureText(badge);}
         @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.ImageButton");info.setCheckable(kind!=FRAME);info.setChecked(active);}
     }
     static class ExposureButton extends View {
         final Paint p=new Paint(3);float value;
         ExposureButton(Context c){super(c);setClickable(true);setFocusable(true);set(0);}
         void set(float ev){value=ExposureValue.clamp(ev);setContentDescription("曝光补偿 "+ExposureValue.label(value)+" EV，点击调整");invalidate();}
-        @Override protected void onDraw(Canvas c){float sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f;p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("monospace",Typeface.NORMAL));p.setTextSize(sp*22);p.setColor(value==0?CREAM:AMBER);c.drawText(ExposureValue.label(value),cx,cy-sp*4,p);p.setTextSize(sp*10);p.setColor(MUTED);c.drawText("EV",cx,cy+sp*14,p);}
+        @Override protected void onDraw(Canvas c){float sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f;p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("monospace",Typeface.NORMAL));p.setTextSize(sp*22);String valueText=ExposureValue.label(value);float width=p.measureText(valueText);if(width>getWidth()-12*getResources().getDisplayMetrics().density)p.setTextSize(p.getTextSize()*(getWidth()-12*getResources().getDisplayMetrics().density)/width);p.setColor(value==0?CREAM:AMBER);c.drawText(valueText,cx,cy-sp*4,p);p.setTextSize(sp*12);p.setColor(MUTED);c.drawText("EV",cx,cy+sp*14,p);}
         @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.Button");}
     }
     static class Dial extends View {
@@ -49,7 +51,7 @@ final class Controls {
             c.save();c.rotate(value/(max-min)*270,cx,cy);
             for(int i=0;i<48;i++){double a=i*Math.PI/24;float rr=r*(i%4==0?.78f:.86f);p.setColor(i%4==0?CREAM:tone(AppTheme.TICK));p.setStrokeWidth(i%4==0?2:1);c.drawLine(cx+(float)Math.sin(a)*rr,cy-(float)Math.cos(a)*rr,cx+(float)Math.sin(a)*r*.96f,cy-(float)Math.cos(a)*r*.96f,p);}c.restore();
             p.setStyle(Paint.Style.FILL);p.setColor(accent);Path mark=new Path();mark.moveTo(cx,cy-r+2);mark.lineTo(cx-4,cy-r-6);mark.lineTo(cx+4,cy-r-6);mark.close();c.drawPath(mark,p);
-            p.setTypeface(Typeface.create("monospace",Typeface.BOLD));p.setTextAlign(Paint.Align.CENTER);p.setTextSize(r*.38f);p.setColor(CREAM);String v=max<=3?String.format(java.util.Locale.US,"%+.1f",value):String.format(java.util.Locale.US,"%+.0f",value);c.drawText(v,cx,cy+2,p);p.setTypeface(Typeface.create("sans-serif",0));p.setTextSize(r*.21f);p.setColor(accent);c.drawText(label,cx,cy+r*.38f,p);
+            p.setTypeface(Typeface.create("monospace",Typeface.BOLD));p.setTextAlign(Paint.Align.CENTER);p.setTextSize(r*.38f);p.setColor(CREAM);String v=max<=3?String.format(java.util.Locale.US,"%+.1f",value):String.format(java.util.Locale.US,"%+.0f",value);c.drawText(v,cx,cy+2,p);p.setTypeface(Typeface.create("sans-serif",0));p.setTextSize(Math.max(r*.21f,12*getResources().getDisplayMetrics().scaledDensity));p.setColor(accent);c.drawText(label.contains(" ")?label.substring(0,label.indexOf(" ")):label,cx,cy+r*.7f,p);
         }
         @Override public boolean onTouchEvent(android.view.MotionEvent e){
             int action=e.getActionMasked();

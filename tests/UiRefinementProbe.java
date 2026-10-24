@@ -1,0 +1,45 @@
+package com.silverroom.camera;
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.view.*;
+import java.util.*;
+
+public final class UiRefinementProbe {
+    static List<String> passed=new ArrayList<>();
+    static void check(boolean v,String n){if(!v)throw new AssertionError(n);passed.add(n);}
+    static MotionEvent e(int action,float x,float y){return new MotionEvent(action,x,y);}
+    static void event(ZoomPhotoView p,int action,float x,float y){p.onTouchEvent(e(action,x,y));}
+    static void touch(ZoomPhotoView p,float dx,float dy){event(p,0,160,300);event(p,2,160+dx,300+dy);event(p,1,160+dx,300+dy);}
+    static void confirm(){GestureDetector.last.onSingleTapConfirmed(e(1,160,300));}
+    public static List<String> run(){
+        CameraUiState s=new CameraUiState(CameraUiState.SWITCHING,230,85,false,null);
+        check(s.focal==230&&s.base==85&&Math.abs(s.crop-230f/85)<.0001f&&!s.ready&&s.reason.isEmpty(),"Typed camera snapshot carries optical source, crop and real readiness without diagnostic parsing");
+        boolean immutable=true;for(java.lang.reflect.Field f:CameraUiState.class.getFields())immutable&=java.lang.reflect.Modifier.isFinal(f.getModifiers());check(immutable,"Every public camera presentation field is immutable");
+        check(CameraUiState.source(14).equals("超广 1×")&&CameraUiState.source(23).equals("主摄 1×")&&CameraUiState.source(85).equals("长焦 1×")&&CameraUiState.source(230).equals("长焦 2.7×"),"Focal captions identify the actual three optical groups and source-relative magnification");
+        boolean layout=true;for(int width:new int[]{320,360,432})for(float font:new float[]{1,1.3f,2})for(boolean detail:new boolean[]{false,true}){int cols=UiSpec.columns(detail,width-24,font);layout&=cols>=1&&cols<=(detail?2:3)&&UiSpec.cardHeight(detail,width-24,cols,font)>=(40+24)*font+84&&UiSpec.toolHeight(font)>=48&&UiSpec.lensHeight(font)>=60*font;}
+        check(layout,"Overview/detail layouts remain bounded at 320/360/432dp and 100/130/200 percent fonts with readable caption space");
+        check(UiSpec.columns(false,408,1)==3&&UiSpec.columns(true,408,1)==2&&UiSpec.columns(false,296,2)==1&&UiSpec.columns(true,408,2)==1,"Narrow screens and enlarged text reduce card columns instead of shrinking captions");
+        check(UiSpec.adjusted(0,0,0,.2f,.1f)==0&&UiSpec.adjusted(.1f,.2f,.3f,.5f,.6f)==5,"Advanced adjustment count excludes defaults and counts each changed control");
+        Context c=new Context();UiChrome ui=new UiChrome(c);ui.settings.cyan=.35f;ui.settings.grain=.4f;ui.refreshAdvanced();String values=ui.settings.cyan+":"+ui.settings.grain;check(ui.roomAdvanced.getVisibility()==View.GONE&&ui.advancedButton.getText().contains("2 项"),"Collapsed darkroom reports adjusted items while hiding only advanced controls");ui.advancedOpen=true;ui.refreshAdvanced();ui.advancedOpen=false;ui.refreshAdvanced();check(values.equals(ui.settings.cyan+":"+ui.settings.grain),"Repeated darkroom folding never resets or mutates recipe values");
+        final int[] inspect={0};CameraStatusView chip=new CameraStatusView(c,()->inspect[0]++);
+        chip.state(s);check(chip.getVisibility()==View.VISIBLE&&!chip.clickable&&!chip.focusable&&chip.label.getText().equals("切镜中"),"Switching chip stays visible and lets finder touches pass through");
+        chip.state(new CameraUiState(CameraUiState.READY,230,85,true,""));check(chip.callbacks.size()==1&&chip.lastDelay==200,"Real first-frame readiness schedules one 200ms chip dismissal");chip.state(new CameraUiState(CameraUiState.READY,231,85,true,""));check(chip.callbacks.size()==1,"Repeated zoom-ready snapshots never prolong the readiness dismissal");
+        chip.state(new CameraUiState(CameraUiState.ERROR,23,23,false,"断开原因"));check(chip.callbacks.isEmpty()&&chip.getVisibility()==View.VISIBLE&&chip.clickable&&chip.focusable&&chip.description.contains("断开原因"),"A connection failure cancels stale hide tasks and exposes the persistent error action");chip.performClick();check(inspect[0]==1,"The error entry invokes the diagnostic and re-detection destination");
+        chip.state(new CameraUiState(CameraUiState.PAUSED,23,23,false,""));check(chip.getVisibility()==View.GONE&&chip.callbacks.isEmpty(),"Leaving the finder hides camera overlays and cancels their dismissal callbacks");
+        chip.state(s);chip.state(new CameraUiState(CameraUiState.READY,230,85,true,""));chip.fireHeld();check(chip.getVisibility()==View.GONE,"A verified replacement frame eventually removes the switch indicator");
+        HintBubble hint=new HintBubble(c,"提示");hint.windowFocus=false;hint.once("camera");check(!c.prefs.getBoolean("camera",false),"An unfocused finder does not consume its first-use hint preference");hint.windowFocus=true;hint.once("camera");check(hint.getVisibility()==View.VISIBLE&&!hint.clickable&&hint.lastDelay==5000,"First-use hint is non-modal and automatically expires after five seconds");hint.dismissHint();hint.once("camera");check(hint.getVisibility()==View.GONE&&hint.callbacks.isEmpty(),"Dismissed once-only hints do not reappear or retain delayed work");
+        ZoomPhotoView p=new ZoomPhotoView(c);p.size(320,640);p.image(new Bitmap());final int[] taps={0},nav={0},deletes={0},exits={0};p.confirmedTap=()->taps[0]++;p.navigate=d->nav[0]+=d;p.delete=()->deletes[0]++;p.exit=()->exits[0]++;p.previous=p.next=true;
+        event(p,0,160,300);event(p,1,160,300);check(taps[0]==0,"Photo release does not toggle chrome before single-tap confirmation");confirm();check(taps[0]==1,"A confirmed single tap invokes the separate chrome callback once");
+        event(p,0,160,300);GestureDetector.last.onDoubleTap(e(0,160,300));event(p,1,160,300);confirm();check(taps[0]==1&&p.viewport.zoom==3,"Double tap zooms without an accidental toolbar toggle");
+        touch(p,100,0);confirm();check(taps[0]==1&&nav[0]==0,"Panning a zoomed photo neither pages nor toggles tools");
+        p.image(new Bitmap());event(p,0,160,300);event(p,5,160,300);ScaleGestureDetector.last.listener.onScaleBegin(ScaleGestureDetector.last);ScaleGestureDetector.last.listener.onScale(ScaleGestureDetector.last);event(p,1,160,300);confirm();check(taps[0]==1&&p.viewport.zoom==2,"Pinch callbacks block delayed single taps while preserving zoom");
+        p.image(new Bitmap());touch(p,-110,0);confirm();check(nav[0]==1&&taps[0]==1,"Left swipe advances a negative without toggling tools");touch(p,110,0);confirm();check(nav[0]==0&&taps[0]==1,"Right swipe moves backward without toggling tools");touch(p,0,-160);confirm();check(deletes[0]==1&&taps[0]==1,"Upward delete gesture cannot also hide the toolbar");touch(p,0,160);confirm();check(exits[0]==1&&taps[0]==1,"Downward exit gesture cannot also hide the toolbar");
+        event(p,0,160,300);event(p,3,160,300);confirm();check(taps[0]==1,"Cancelled touches cannot trigger a delayed chrome toggle");event(p,0,160,300);event(p,1,160,300);p.loading();confirm();check(taps[0]==1,"Replacing a photo invalidates the previous image's pending single tap");
+        p.image(new Bitmap());p.viewport.scale(3,100,300);p.viewport.pan(20,40);float zoom=p.viewport.zoom,x=p.viewport.x,y=p.viewport.y,fit=p.viewport.fit;ui=new UiChrome(c);ui.toggle();check(!ui.topChrome.isEnabled()&&ui.topChrome.importance==View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS&&!ui.bottomChrome.getChildAt(0).isEnabled(),"Hidden chrome immediately stops touches and descendant accessibility focus");ViewPropertyAnimator.finishAll();check(ui.topChrome.getVisibility()==View.INVISIBLE&&ui.topChrome.animate().duration==160,"Chrome fades out over 160ms and keeps its fixed overlay layout");
+        ui.toggle();ViewPropertyAnimator.finishAll();check(ui.topChrome.isEnabled()&&ui.bottomChrome.getChildAt(0).isEnabled()&&ui.topChrome.getVisibility()==View.VISIBLE&&ui.topChrome.alpha==1,"Showing tools restores interaction, visibility and alpha");
+        ui.toggle();ui.toggle();ViewPropertyAnimator.finishAll();check(ui.chromeVisible&&ui.topChrome.getVisibility()==View.VISIBLE,"Rapid single taps cancel stale fade-end callbacks");check(p.viewport.zoom==zoom&&p.viewport.x==x&&p.viewport.y==y&&p.viewport.fit==fit&&p.getWidth()==320&&p.getHeight()==640,"Toolbar visibility never changes photo fit, zoom, pan or viewport size");
+        ui.toggle();ViewPropertyAnimator.finishAll();p.loading();p.image(new Bitmap());check(!ui.chromeVisible&&ui.topChrome.getVisibility()==View.INVISIBLE&&new UiChrome(c).chromeVisible,"Paging preserves immersive visibility while a fresh viewer defaults to visible tools");
+        p=new ZoomPhotoView(c);p.size(320,640);p.image(new Bitmap());final int[] delayed={0};p.confirmedTap=()->delayed[0]++;event(p,0,160,300);GestureDetector.confirmOnUp=true;event(p,1,160,300);check(delayed[0]==1,"A framework-deferred single tap confirmed inside ACTION_UP is not lost before pointer release");event(p,0,160,300);GestureDetector.confirmOnUp=true;event(p,1,190,300);check(delayed[0]==1,"Final release displacement blocks taps even if no intermediate MOVE was delivered");
+        return passed;
+    }
+}

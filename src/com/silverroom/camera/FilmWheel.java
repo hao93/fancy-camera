@@ -42,20 +42,20 @@ class FilmWheel extends View {
     @Override public void setEnabled(boolean enabled){if(!enabled&&state!=null)finish();super.setEnabled(enabled);invalidate();}
     @Override protected void onDetachedFromWindow(){cancelAnimation();releaseTouch();super.onDetachedFromWindow();}
     @Override protected void onDraw(Canvas c){
-        float cx=getWidth()/2f,cy=getHeight()/2f,slot=pitch();
-        float half=dp(compact()?22:25);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);
+        float cx=getWidth()/2f,cy=getHeight()/2f,slot=pitch(),font=Math.max(1,getResources().getDisplayMetrics().scaledDensity/getResources().getDisplayMetrics().density);
+        float half=getHeight()/2f-dp(7);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);paint.setStyle(Paint.Style.FILL);
         for(int i=0;i<state.count();i++){
             float distance=i-(Float.isFinite(visual)?visual:state.position()),x=cx+distance*slot;if(x< -slot||x>getWidth()+slot)continue;
             float depth=Math.min(1.8f,Math.abs(distance)),scale=1-depth*.19f;int id=state.id(i);int alpha=Math.round((1-Math.min(.82f,depth*.43f))*(isEnabled()&&available(id)?255:75));boolean selected=i==state.index()&&available(id);
-            c.save();c.translate(x,cy+dp(depth*2));c.scale(scale,scale);c.clipRect(-slot*.48f,-dp(28),slot*.48f,dp(28));
-            if(!compact()){paint.setColor(color(id));paint.setAlpha(alpha);c.drawRoundRect(-dp(11),-dp(19),dp(11),-dp(16),dp(1.5f),dp(1.5f),paint);}
-            paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?15:12));paint.setColor(selected?AMBER:CREAM);paint.setAlpha(alpha);drawTitle(c,title(id),dp(compact()?-1:1),paint,slot);
-            paint.setTypeface(Typeface.create("sans-serif",0));paint.setTextSize(sp(compact()?9:selected?10:8));paint.setColor(selected&&!compact()?AMBER:MUTED);paint.setAlpha(alpha);c.drawText(fit(selected&&!compact()?FilmStrength.percent(strength)+"%":subtitle(id),slot-dp(12)),0,dp(compact()?14:16),paint);c.restore();
+            c.save();c.translate(x,cy+dp(depth*2));c.scale(scale,scale);c.clipRect(-slot*.48f,-getHeight()/2f+dp(4),slot*.48f,getHeight()/2f-dp(4));
+            if(!compact()){paint.setColor(color(id));paint.setAlpha(alpha);c.drawRoundRect(-dp(11),-dp(19)*font,dp(11),-dp(16)*font,dp(1.5f),dp(1.5f),paint);}
+            paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?18:14));paint.setColor(selected?AMBER:CREAM);paint.setAlpha(alpha);drawTitle(c,title(id),dp(compact()?-1:1)*font,paint,slot);
+            paint.setTypeface(Typeface.create("sans-serif",0));paint.setFontFeatureSettings("tnum");paint.setTextSize(sp(12));paint.setColor(selected&&!compact()?AMBER:MUTED);paint.setAlpha(alpha);c.drawText(fit(selected&&!compact()?FilmStrength.percent(strength)+"%":subtitle(id),slot-dp(12)),0,dp(compact()?14:18)*font,paint);c.restore();
         }
         paint.setAlpha(255);paint.setShader(new LinearGradient(0,0,dp(22),0,INK,(INK&0x00ffffff),Shader.TileMode.CLAMP));c.drawRect(0,0,dp(22),getHeight(),paint);
         paint.setShader(new LinearGradient(getWidth()-dp(22),0,getWidth(),0,(INK&0x00ffffff),INK,Shader.TileMode.CLAMP));c.drawRect(getWidth()-dp(22),0,getWidth(),getHeight(),paint);paint.setShader(null);
-        if(!compact()){paint.setColor(AMBER);Path marker=new Path();marker.moveTo(cx,cy+dp(28));marker.lineTo(cx-dp(2.5f),cy+dp(32));marker.lineTo(cx+dp(2.5f),cy+dp(32));marker.close();c.drawPath(marker,paint);}
+        if(!compact()){paint.setColor(AMBER);Path marker=new Path();marker.moveTo(cx,getHeight()-dp(4));marker.lineTo(cx-dp(2.5f),getHeight());marker.lineTo(cx+dp(2.5f),getHeight());marker.close();c.drawPath(marker,paint);}
     }
     private String fit(String text,float width){if(paint.measureText(text)<=width)return text;int end=text.length();while(end>0&&paint.measureText(text.substring(0,end)+"…")>width)end--;return text.substring(0,end)+"…";}
     @Override public boolean onTouchEvent(MotionEvent e){

@@ -5,7 +5,7 @@ import android.graphics.*;
 import android.view.View;
 import static com.silverroom.camera.Controls.*;
 
-/** Small visual surface within a full 44dp touch target. No font-based ellipsis. */
+/** Small visual surface within a full 48dp touch target. No font-based ellipsis. */
 final class FilmShelfButton extends View {
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final boolean more;private int group;

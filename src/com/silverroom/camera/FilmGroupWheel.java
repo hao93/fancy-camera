@@ -20,7 +20,7 @@ final class FilmGroupWheel extends View {
 
     FilmGroupWheel(Context context){super(context);setClickable(true);setFocusable(true);describe();}
     private float dp(float n){return n*getResources().getDisplayMetrics().density;}
-    private float pitch(){return dp(24);}
+    private float pitch(){return dp(24)*Math.max(1,getResources().getDisplayMetrics().scaledDensity/getResources().getDisplayMetrics().density);}
     private int selected(){return Math.round(position);}
     void group(int value,boolean hasFavorites){
         int nextCount=FilmGroups.LABELS.length-(hasFavorites?0:1);
@@ -64,19 +64,19 @@ final class FilmGroupWheel extends View {
         return true;
     }
     @Override protected void onDraw(Canvas canvas){
-        float cx=getWidth()/2f,cy=getHeight()/2f,half=Math.min(dp(22),cx-dp(2));
-        paint.setAlpha(255);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));canvas.drawRoundRect(cx-half,cy-dp(13),cx+half,cy+dp(13),dp(9),dp(9),paint);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(isFocused()?AMBER:tone(AppTheme.SELECT_BORDER));canvas.drawRoundRect(cx-half,cy-dp(13),cx+half,cy+dp(13),dp(9),dp(9),paint);
+        float cx=getWidth()/2f,cy=getHeight()/2f,half=cx-dp(2),unit=Math.max(1,getResources().getDisplayMetrics().scaledDensity/getResources().getDisplayMetrics().density);
+        paint.setAlpha(255);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));canvas.drawRoundRect(cx-half,cy-pitch()/2,cx+half,cy+pitch()/2,dp(9),dp(9),paint);
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(isFocused()?AMBER:tone(AppTheme.SELECT_BORDER));canvas.drawRoundRect(cx-half,cy-pitch()/2,cx+half,cy+pitch()/2,dp(9),dp(9),paint);
         paint.setStyle(Paint.Style.FILL);paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Typeface.create("sans-serif-medium",0));
         canvas.save();canvas.clipRect(dp(2),dp(1),getWidth()-dp(2),getHeight()-dp(1));
         for(int i=Math.max(0,selected()-2);i<=Math.min(count-1,selected()+2);i++){
             float distance=i-position,y=cy+distance*pitch();boolean current=i==selected();
             paint.setColor(current?AMBER:MUTED);paint.setAlpha(isEnabled()?Math.round(255*(1-Math.min(.85f,Math.abs(distance)*.65f))):75);
-            paint.setTextSize((current?11:9)*getResources().getDisplayMetrics().scaledDensity);
+            paint.setTextSize(12*getResources().getDisplayMetrics().scaledDensity);
             // Fit two-character labels without crossing the adjacent horizontal film reel.
             String label=FilmGroups.SHORT_LABELS[i];float width=paint.measureText(label);if(width>half*2-dp(4))paint.setTextSize(paint.getTextSize()*(half*2-dp(4))/width);
             Paint.FontMetrics fm=paint.getFontMetrics();float baseline=y-(fm.ascent+fm.descent)/2;
-            canvas.save();canvas.clipRect(0,y-dp(11),getWidth(),y+dp(11));canvas.drawText(label,cx,baseline,paint);canvas.restore();
+            canvas.save();canvas.clipRect(0,y-pitch()/2,getWidth(),y+pitch()/2);canvas.drawText(label,cx,baseline,paint);canvas.restore();
         }
         canvas.restore();paint.setAlpha(255);
     }
