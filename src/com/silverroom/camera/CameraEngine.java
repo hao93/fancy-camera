@@ -196,12 +196,13 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
             listener.status("正在绑定 "+(front?"前置":route.base+"mm "+LensPlan.name(route.base))+" · 等待新镜头画面");
             manager.openCamera(route.owner,new CameraDevice.StateCallback(){
                 public void onOpened(CameraDevice d){handoff.opened();if(token!=generation||!active){retire(d);return;}device=d;createSession(false);}
-                public void onClosed(CameraDevice d){handoff.closed(d);handler.postDelayed(CameraEngine.this::tryOpen,180);}
+                public void onClosed(CameraDevice d){cameraClosed(d);}
                 public void onDisconnected(CameraDevice d){handoff.opened();retire(d);if(token!=generation)return;close();view.requestRender();cameraError("相机连接已断开，请重新检测镜头");}
                 public void onError(CameraDevice d,int code){boolean wasOpen=d==device;handoff.opened();retire(d);if(token!=generation)return;if(code==ERROR_CAMERA_IN_USE||code==ERROR_MAX_CAMERAS_IN_USE){close();view.requestRender();event("相机占用错误 "+code);cameraError("相机正被其他应用占用，请关闭后重新检测");}else if(wasOpen)recover("设备回调错误 code="+code);else failRoute("独立/逻辑相机打开被拒绝 code="+code);}
             },handler);
         }catch(Exception e){handoff.opened();recover("打开/输出准备失败："+e.getClass().getSimpleName()+" / "+e.getMessage());}
     }
+    private void cameraClosed(CameraDevice d){handoff.closed(d);handler.post(this::tryOpen);}
     private void retire(CameraDevice d){handoff.retiring(d);d.close();}
     private void prepareRaw(StreamConfigurationMap map,StreamConfigurationMap owner){
         rawState=rawWanted?"当前镜头未开放RAW":"RAW已关闭";if(!rawWanted)return;if(rawRejected.contains(route.key())){rawState="此镜头RAW组合已被系统拒绝，当前仅JPEG";return;}
