@@ -31,9 +31,9 @@ public final class ControlRotationProbe {
         boolean fits=true;for(float font:new float[]{1,1.3f,2})for(float angle:new float[]{0,45,90,135,180,270})for(int mm:LensWheel.MM){
             Context context=new Context();context.resources.metrics.scaledDensity=font;lens=new LensWheel(context);lens.size(336,UiSpec.lensHeight(font));lens.numberAngle(angle);
             Paint paint=new Paint(3);paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(18*font);Canvas canvas=new Canvas();lens.drawTitle(canvas,""+mm,-1,paint,lens.pitch());float[] b=canvas.textBounds.get(0);
-            float bottom=lens.getHeight()/2f-12*font*1.35f-10,top=-lens.getHeight()/2f+8;fits&=b[0]>=-(lens.pitch()-16)/2-.01f&&b[2]<=(lens.pitch()-16)/2+.01f&&b[1]>=top-.01f&&b[3]<=bottom+.01f&&near(paint.getTextSize(),18*font);
+            float bottom=lens.getHeight()/2f-8,top=-lens.getHeight()/2f+8;fits&=b[0]>=-(lens.pitch()-16)/2-.01f&&b[2]<=(lens.pitch()-16)/2+.01f&&b[1]>=top-.01f&&b[3]<=bottom+.01f&&near(paint.getTextSize(),18*font);
         }
-        check(fits,"All seven focal lengths fit their isolated numeric region at portrait, landscape and animation angles with enlarged fonts");
+        check(fits,"All seven focal lengths fit the compact numeric region at portrait, landscape and animation angles with enlarged fonts");
         FilmWheel film=new FilmWheel(new Context());Canvas filmCanvas=new Canvas();film.onDraw(filmCanvas);
         check(filmCanvas.textAngles.stream().allMatch(v->near(v,0)),"Film names, percentages and Chinese descriptions retain their unrotated film renderer");
         boolean toolIcons=true,badges=true,backgrounds=true;for(int theme=0;theme<2;theme++){AppTheme.select(theme);for(int kind=0;kind<4;kind++)for(float angle:new float[]{-90,90,180}){

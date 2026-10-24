@@ -16,7 +16,7 @@ final class LensWheel extends FilmWheel {
     interface Blocked {void lens(int mm);}interface Zoomed {void focal(float mm);}
     Blocked blocked;Zoomed zoomed;
     private float numberAngle,downX,downY,lastX,lastDispatched=23;private int pointer=-1,lastAnchor=-1;
-    private boolean dragged,disabling;private VelocityTracker velocity;private ValueAnimator motion;private final Paint brush=new Paint(3);
+    private boolean dragged,disabling,emphasisTarget;private float emphasis;private VelocityTracker velocity;private ValueAnimator motion,emphasisMotion;private final Paint brush=new Paint(3);
     private final Runnable held=()->{if(pointer>=0&&!dragged&&isLongClickable()){performLongClick();stop();}};
     void numberAngle(float value){numberAngle=value;invalidate();}
     LensWheel(Context c){super(c);films(Arrays.asList(0,1,2,3,4,5,6),1);describeZoom();}
@@ -39,19 +39,31 @@ final class LensWheel extends FilmWheel {
     @Override void finish(){stop();if(disabling)return;float target=ZoomScale.snap(state.position(),enabled);if(Float.isFinite(target))updateZoom(target);}
     @Override public void setEnabled(boolean value){disabling=!value;if(disabling&&state!=null)stop();super.setEnabled(value);disabling=false;}
     private void settle(float target){stop();if(!Float.isFinite(target))return;if(Math.abs(target-state.position())<.001f){updateZoom(target);return;}motion=ValueAnimator.ofFloat(state.position(),target);motion.setDuration(220);motion.setInterpolator(new DecelerateInterpolator(2));motion.addUpdateListener(a->updateZoom((float)a.getAnimatedValue()));motion.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator a){invalidate();}});motion.start();}
-    @Override protected void onDetachedFromWindow(){stop();super.onDetachedFromWindow();}
+    @Override protected void onDetachedFromWindow(){stop();if(emphasisMotion!=null){emphasisMotion.cancel();emphasisMotion=null;}emphasis=0;emphasisTarget=false;super.onDetachedFromWindow();}
     @Override protected float pitch(){return dp(72)*Math.max(1,getResources().getConfiguration().fontScale);}
     @Override String title(int id){return MM[id]+"";}
-    @Override void drawTitle(Canvas canvas,String text,float baseline,Paint brush,float slot){
-        float d=getResources().getDisplayMetrics().density,original=brush.getTextSize();
-        Paint.FontMetrics fm=brush.getFontMetrics();float caption=12*getResources().getDisplayMetrics().scaledDensity;
-        float top=-getHeight()/2f+8*d,bottom=getHeight()/2f-caption*1.35f-10*d,center=(top+bottom)/2;
-        // Reserve caption space so showing the transient millimetre readout never moves numbers.
+    private static final class NumberLayout {
+        final float size,width,height,center,numberHeight;
+        NumberLayout(float s,float w,float h,float c,float n){size=s;width=w;height=h;center=c;numberHeight=n;}
+    }
+    private NumberLayout numberLayout(String text,Paint paint,float slot,float grow){
+        float original=paint.getTextSize();Paint.FontMetrics fm=paint.getFontMetrics();float w=paint.measureText(text),h=fm.descent-fm.ascent;
         double radians=Math.toRadians(numberAngle);float sine=(float)Math.abs(Math.sin(radians)),cosine=(float)Math.abs(Math.cos(radians));
-        float w=brush.measureText(text),h=fm.descent-fm.ascent;
-        float scale=Math.min(1,Math.min((slot-16*d)/Math.max(1,w*cosine+h*sine),(bottom-top)/Math.max(1,w*sine+h*cosine)));
-        brush.setTextSize(original*scale);fm=brush.getFontMetrics();
-        canvas.save();canvas.rotate(numberAngle,0,center);canvas.drawText(text,0,center-(fm.ascent+fm.descent)/2,brush);canvas.restore();brush.setTextSize(original);
+        float rotatedWidth=w*cosine+h*sine,rotatedHeight=w*sine+h*cosine;
+        paint.setTextSize(12*getResources().getDisplayMetrics().scaledDensity);fm=paint.getFontMetrics();float caption=(fm.descent-fm.ascent+dp(4))*grow,captionWidth=paint.measureText(text+"mm");paint.setTextSize(original);
+        float scale=Math.min(1,Math.min((slot-dp(16))/Math.max(1,rotatedWidth),(getHeight()-dp(16)-caption)/Math.max(1,rotatedHeight)));
+        float width=Math.max(dp(32),Math.max(rotatedWidth*scale+dp(12),(captionWidth+dp(12))*grow));
+        return new NumberLayout(original*scale,Math.min(slot*.94f,width),rotatedHeight*scale+dp(8)+caption,-caption/2,rotatedHeight*scale);
+    }
+    @Override void drawTitle(Canvas canvas,String text,float baseline,Paint paint,float slot){drawTitle(canvas,text,paint,numberLayout(text,paint,slot,0));}
+    private void drawTitle(Canvas canvas,String text,Paint paint,NumberLayout layout){
+        float original=paint.getTextSize();paint.setTextSize(layout.size);Paint.FontMetrics fm=paint.getFontMetrics();
+        canvas.save();canvas.rotate(numberAngle,0,layout.center);canvas.drawText(text,0,layout.center-(fm.ascent+fm.descent)/2,paint);canvas.restore();paint.setTextSize(original);
+    }
+    private void emphasis(boolean scrolling){
+        if(emphasisTarget==scrolling)return;emphasisTarget=scrolling;if(emphasisMotion!=null)emphasisMotion.cancel();
+        emphasisMotion=ValueAnimator.ofFloat(emphasis,scrolling?1:0);emphasisMotion.setDuration(140);emphasisMotion.setInterpolator(new DecelerateInterpolator(2));
+        emphasisMotion.addUpdateListener(a->{emphasis=(float)a.getAnimatedValue();invalidate();});emphasisMotion.start();
     }
     @Override String subtitle(int id){return labels[id];}
     @Override boolean available(int id){return enabled[id];}
@@ -71,16 +83,18 @@ final class LensWheel extends FilmWheel {
     }
     @Override protected void onDraw(Canvas c){
         float cx=getWidth()/2f,cy=getHeight()/2f,slot=pitch(),sp=getResources().getDisplayMetrics().scaledDensity;
-        brush.setStyle(Paint.Style.FILL);brush.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(cx-slot*.47f,dp(4),cx+slot*.47f,getHeight()-dp(8),dp(13),dp(13),brush);
-        brush.setStyle(Paint.Style.STROKE);brush.setStrokeWidth(dp(.8f));brush.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.47f,dp(4),cx+slot*.47f,getHeight()-dp(8),dp(13),dp(13),brush);brush.setStyle(Paint.Style.FILL);
-        for(int i=0;i<7;i++){float distance=i-state.position(),x=cx+distance*slot;if(Math.abs(distance)<.74f||x< -slot||x>getWidth()+slot)continue;drawNumber(c,title(i),"",x,cy,slot,sp,enabled[i]?CREAM:MUTED,enabled[i]?195:75);}
-        float mm=ZoomScale.focal(state.position());boolean scrolling=(pointer>=0&&dragged)||(motion!=null&&motion.isRunning());String note=scrolling?ZoomScale.label(mm)+"mm":"";
-        drawNumber(c,ZoomScale.label(mm),note,cx,cy,slot,sp,ZoomScale.allowed(mm,enabled)?AMBER:MUTED,isEnabled()&&ZoomScale.allowed(mm,enabled)?255:75);
+        boolean scrolling=(pointer>=0&&dragged)||(motion!=null&&motion.isRunning());emphasis(scrolling);
+        float mm=ZoomScale.focal(state.position());String number=ZoomScale.label(mm);brush.setTypeface(Typeface.create("sans-serif-medium",0));brush.setFontFeatureSettings("tnum");brush.setTextSize((18+2*emphasis)*sp);NumberLayout selected=numberLayout(number,brush,slot,emphasis);
+        float left=cx-selected.width/2,top=cy-selected.height/2,right=cx+selected.width/2,bottom=cy+selected.height/2;
+        brush.setStyle(Paint.Style.FILL);brush.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(left,top,right,bottom,dp(10),dp(10),brush);
+        brush.setStyle(Paint.Style.STROKE);brush.setStrokeWidth(dp(.8f));brush.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(left,top,right,bottom,dp(10),dp(10),brush);brush.setStyle(Paint.Style.FILL);
+        for(int i=0;i<7;i++){float distance=i-state.position(),x=cx+distance*slot;if(Math.abs(distance)<.74f||x< -slot||x>getWidth()+slot)continue;drawNumber(c,title(i),"",x,cy,slot,sp,enabled[i]?CREAM:MUTED,enabled[i]?195:75,0);}
+        drawNumber(c,number,scrolling?number+"mm":"",cx,cy,slot,sp,ZoomScale.allowed(mm,enabled)?AMBER:MUTED,isEnabled()&&ZoomScale.allowed(mm,enabled)?255:75,emphasis);
         brush.setColor(MUTED);brush.setAlpha(110);brush.setStrokeWidth(dp(.7f));for(int tick=0;tick<=24;tick++){float x=cx+(tick/4f-state.position())*slot;if(x<dp(4)||x>getWidth()-dp(4))continue;c.drawLine(x,getHeight()-dp(tick%4==0?4:2),x,getHeight(),brush);}brush.setAlpha(255);
     }
-    private void drawNumber(Canvas c,String title,String note,float x,float y,float slot,float sp,int color,int alpha){
-        c.save();c.translate(x,y);brush.setTypeface(Typeface.create("sans-serif-medium",0));brush.setTextAlign(Paint.Align.CENTER);brush.setFontFeatureSettings("tnum");brush.setTextSize(18*sp);brush.setColor(color);brush.setAlpha(alpha);drawTitle(c,title,-dp(1),brush,slot);
-        if(!note.isEmpty()){brush.setTextSize(12*sp);brush.setColor(MUTED);c.drawText(note,0,getHeight()/2f-dp(12),brush);}c.restore();
+    private void drawNumber(Canvas c,String title,String note,float x,float y,float slot,float sp,int color,int alpha,float grow){
+        c.save();c.translate(x,y);brush.setTypeface(Typeface.create("sans-serif-medium",0));brush.setTextAlign(Paint.Align.CENTER);brush.setFontFeatureSettings("tnum");brush.setTextSize((18+2*grow)*sp);NumberLayout layout=numberLayout(title,brush,slot,grow);brush.setColor(color);brush.setAlpha(alpha);drawTitle(c,title,brush,layout);
+        if(!note.isEmpty()){c.save();c.clipRect(-layout.width/2,-layout.height/2,layout.width/2,layout.height/2);brush.setTextSize(12*sp);brush.setColor(MUTED);brush.setAlpha(Math.round(alpha*grow));Paint.FontMetrics fm=brush.getFontMetrics();c.drawText(note,0,layout.center+layout.numberHeight/2+dp(4)-fm.ascent,brush);c.restore();}c.restore();
     }
     private boolean step(int direction){if(!isEnabled())return false;stop();int target=direction>0?(int)Math.floor(state.position()+.001f)+1:(int)Math.ceil(state.position()-.001f)-1;while(target>=0&&target<7){if(enabled[target]){tapped(target);return true;}target+=direction;}return false;}
     @Override public boolean onKeyDown(int key,KeyEvent e){if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT)return step(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1);return super.onKeyDown(key,e);}
