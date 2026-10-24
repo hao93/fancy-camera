@@ -25,7 +25,7 @@ public final class ControlRotationProbe {
         LensWheel lens=new LensWheel(new Context());lens.size(336,UiSpec.lensHeight(1));lens.availability(available,labels,1,false);final int[] changes={0};lens.listener=id->changes[0]++;
         lens.numberAngle(-90);Canvas landscape=new Canvas();lens.onDraw(landscape);boolean numbers=true,chinese=true;
         for(int i=0;i<landscape.texts.size();i++){String text=landscape.texts.get(i);if(text.matches("[0-9]+"))numbers&=sameAngle(landscape.textAngles.get(i),-90);else chinese&=near(landscape.textAngles.get(i),0);}
-        check(numbers&&chinese&&changes[0]==0,"Shipping lens renderer rotates focal numbers while Chinese source labels stay portrait and selection stays unchanged");
+        check(numbers&&chinese&&changes[0]==0,"Shipping lens renderer rotates focal numbers while idle captions stay empty and selection stays unchanged");
         lens.onTouchEvent(new android.view.MotionEvent(0,lens.getWidth()/2f+72,26));lens.onTouchEvent(new android.view.MotionEvent(1,lens.getWidth()/2f+72,26));ValueAnimator.finishAll();
         check(changes[0]==1&&lens.state.selected()==2,"Rotated focal numbers retain the original horizontal tap coordinates and optical selection");
         boolean fits=true;for(float font:new float[]{1,1.3f,2})for(float angle:new float[]{0,45,90,135,180,270})for(int mm:LensWheel.MM){

@@ -33,12 +33,12 @@ final class LensWheel extends FilmWheel {
         if(Math.abs(mm-lastDispatched)>.049f){lastDispatched=mm;describeZoom();if(zoomed!=null)zoomed.focal(mm);else if(old!=state.selected()&&listener!=null)listener.selected(state.selected());}
         invalidate();
     }
-    private void release(){removeCallbacks(held);pointer=-1;if(velocity!=null){velocity.recycle();velocity=null;}if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(false);}
+    private void release(){removeCallbacks(held);pointer=-1;if(velocity!=null){velocity.recycle();velocity=null;}if(getParent()!=null)getParent().requestDisallowInterceptTouchEvent(false);invalidate();}
     private void stop(){if(motion!=null){motion.cancel();motion=null;}release();}
     @Override boolean moving(){return pointer>=0||(motion!=null&&motion.isRunning());}
     @Override void finish(){stop();if(disabling)return;float target=ZoomScale.snap(state.position(),enabled);if(Float.isFinite(target))updateZoom(target);}
     @Override public void setEnabled(boolean value){disabling=!value;if(disabling&&state!=null)stop();super.setEnabled(value);disabling=false;}
-    private void settle(float target){stop();if(!Float.isFinite(target))return;if(Math.abs(target-state.position())<.001f){updateZoom(target);return;}motion=ValueAnimator.ofFloat(state.position(),target);motion.setDuration(220);motion.setInterpolator(new DecelerateInterpolator(2));motion.addUpdateListener(a->updateZoom((float)a.getAnimatedValue()));motion.start();}
+    private void settle(float target){stop();if(!Float.isFinite(target))return;if(Math.abs(target-state.position())<.001f){updateZoom(target);return;}motion=ValueAnimator.ofFloat(state.position(),target);motion.setDuration(220);motion.setInterpolator(new DecelerateInterpolator(2));motion.addUpdateListener(a->updateZoom((float)a.getAnimatedValue()));motion.addListener(new android.animation.AnimatorListenerAdapter(){@Override public void onAnimationEnd(android.animation.Animator a){invalidate();}});motion.start();}
     @Override protected void onDetachedFromWindow(){stop();super.onDetachedFromWindow();}
     @Override protected float pitch(){return dp(72)*Math.max(1,getResources().getConfiguration().fontScale);}
     @Override String title(int id){return MM[id]+"";}
@@ -46,7 +46,7 @@ final class LensWheel extends FilmWheel {
         float d=getResources().getDisplayMetrics().density,original=brush.getTextSize();
         Paint.FontMetrics fm=brush.getFontMetrics();float caption=12*getResources().getDisplayMetrics().scaledDensity;
         float top=-getHeight()/2f+8*d,bottom=getHeight()/2f-caption*1.35f-10*d,center=(top+bottom)/2;
-        // Reserve a separate number region above the stationary lens-source subtitle.
+        // Reserve caption space so showing the transient millimetre readout never moves numbers.
         double radians=Math.toRadians(numberAngle);float sine=(float)Math.abs(Math.sin(radians)),cosine=(float)Math.abs(Math.cos(radians));
         float w=brush.measureText(text),h=fm.descent-fm.ascent;
         float scale=Math.min(1,Math.min((slot-16*d)/Math.max(1,w*cosine+h*sine),(bottom-top)/Math.max(1,w*sine+h*cosine)));
@@ -73,14 +73,14 @@ final class LensWheel extends FilmWheel {
         float cx=getWidth()/2f,cy=getHeight()/2f,slot=pitch(),sp=getResources().getDisplayMetrics().scaledDensity;
         brush.setStyle(Paint.Style.FILL);brush.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(cx-slot*.47f,dp(4),cx+slot*.47f,getHeight()-dp(8),dp(13),dp(13),brush);
         brush.setStyle(Paint.Style.STROKE);brush.setStrokeWidth(dp(.8f));brush.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.47f,dp(4),cx+slot*.47f,getHeight()-dp(8),dp(13),dp(13),brush);brush.setStyle(Paint.Style.FILL);
-        for(int i=0;i<7;i++){float distance=i-state.position(),x=cx+distance*slot;if(Math.abs(distance)<.74f||x< -slot||x>getWidth()+slot)continue;drawNumber(c,title(i),labels[i],x,cy,slot,sp,enabled[i]?CREAM:MUTED,enabled[i]?195:75);}
-        float mm=ZoomScale.focal(state.position());int base=LensPlan.base(mm);String note=ZoomScale.allowed(mm,enabled)?CameraUiState.source(mm):labels[state.index()];
+        for(int i=0;i<7;i++){float distance=i-state.position(),x=cx+distance*slot;if(Math.abs(distance)<.74f||x< -slot||x>getWidth()+slot)continue;drawNumber(c,title(i),"",x,cy,slot,sp,enabled[i]?CREAM:MUTED,enabled[i]?195:75);}
+        float mm=ZoomScale.focal(state.position());boolean scrolling=(pointer>=0&&dragged)||(motion!=null&&motion.isRunning());String note=scrolling?ZoomScale.label(mm)+"mm":"";
         drawNumber(c,ZoomScale.label(mm),note,cx,cy,slot,sp,ZoomScale.allowed(mm,enabled)?AMBER:MUTED,isEnabled()&&ZoomScale.allowed(mm,enabled)?255:75);
         brush.setColor(MUTED);brush.setAlpha(110);brush.setStrokeWidth(dp(.7f));for(int tick=0;tick<=24;tick++){float x=cx+(tick/4f-state.position())*slot;if(x<dp(4)||x>getWidth()-dp(4))continue;c.drawLine(x,getHeight()-dp(tick%4==0?4:2),x,getHeight(),brush);}brush.setAlpha(255);
     }
     private void drawNumber(Canvas c,String title,String note,float x,float y,float slot,float sp,int color,int alpha){
         c.save();c.translate(x,y);brush.setTypeface(Typeface.create("sans-serif-medium",0));brush.setTextAlign(Paint.Align.CENTER);brush.setFontFeatureSettings("tnum");brush.setTextSize(18*sp);brush.setColor(color);brush.setAlpha(alpha);drawTitle(c,title,-dp(1),brush,slot);
-        brush.setTextSize(12*sp);brush.setColor(MUTED);c.drawText(note==null?"":note,0,getHeight()/2f-dp(12),brush);c.restore();
+        if(!note.isEmpty()){brush.setTextSize(12*sp);brush.setColor(MUTED);c.drawText(note,0,getHeight()/2f-dp(12),brush);}c.restore();
     }
     private boolean step(int direction){if(!isEnabled())return false;stop();int target=direction>0?(int)Math.floor(state.position()+.001f)+1:(int)Math.ceil(state.position()-.001f)-1;while(target>=0&&target<7){if(enabled[target]){tapped(target);return true;}target+=direction;}return false;}
     @Override public boolean onKeyDown(int key,KeyEvent e){if(key==KeyEvent.KEYCODE_DPAD_LEFT||key==KeyEvent.KEYCODE_DPAD_RIGHT)return step(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1);return super.onKeyDown(key,e);}

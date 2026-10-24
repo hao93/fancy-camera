@@ -9,11 +9,13 @@ public final class LensZoomProbe {
     static final List<String> passed=new ArrayList<>();static void check(boolean yes,String label){if(!yes)throw new AssertionError(label);passed.add(label);}
     static class Harness {
         LensWheel wheel=new LensWheel(new Context());List<Float> values=new ArrayList<>();
-        Harness(){VelocityTracker.speed=0;wheel.size(336,52);wheel.availability(new boolean[]{true,true,true,true,true,true,true},new String[]{"光学","光学","裁切","裁切","光学","裁切","裁切"},1,false);wheel.zoomed=values::add;}
+        Harness(){VelocityTracker.speed=0;wheel.size(336,UiSpec.lensHeight(1));wheel.availability(new boolean[]{true,true,true,true,true,true,true},new String[]{"光学","光学","裁切","裁切","光学","裁切","裁切"},1,false);wheel.zoomed=values::add;}
         void event(int action,float x){wheel.onTouchEvent(new MotionEvent(action,x,26));}
         void drag(float slots){event(0,168);event(2,168-8-slots*72);event(1,168-8-slots*72);ValueAnimator.finishAll();}
         float last(){return values.get(values.size()-1);}
     }
+    static Canvas draw(Harness h){Canvas c=new Canvas();h.wheel.onDraw(c);return c;}
+    static boolean millimetres(Canvas c){return c.texts.stream().anyMatch(t->t.endsWith("mm"));}
     public static List<String> run(){
         boolean[] all={true,true,true,true,true,true,true},main={false,true,true,true,false,false,false};
         boolean monotonic=true,inverse=true;float previous=0;for(int i=0;i<=600;i++){float p=i/100f,mm=ZoomScale.focal(p);monotonic&=mm>=previous;previous=mm;inverse&=Math.abs(ZoomScale.position(mm)-p)<.009;}
@@ -31,6 +33,10 @@ public final class LensZoomProbe {
         h=new Harness();h.wheel.focal(135);h.wheel.tapped(6);check(h.values.equals(Arrays.asList(230f)),"Clicking 230mm jumps directly without opening every intermediate route");
         h=new Harness();h.event(0,168);h.event(5,168);h.event(2,0);h.event(1,0);check(h.values.isEmpty(),"A second finger cancels focal scrolling without selecting another lens");
         h=new Harness();h.drag(1.5f);Canvas canvas=new Canvas();h.wheel.onDraw(canvas);check(canvas.texts.contains("41.8")&&h.wheel.description.contains("41.8"),"The central readout and accessible label announce the actual intermediate focal length");
+        h=new Harness();check(draw(h).texts.stream().allMatch(t->t.matches("[0-9]+(?:\\.[0-9])?")),"Idle focal reel draws only numbers without source, magnification or heading captions");
+        h.event(0,168);check(!millimetres(draw(h)),"Holding a stationary finger does not expose the scrolling caption");h.event(2,168-8-108);Canvas during=draw(h);check(during.texts.contains("41.8mm")&&during.texts.stream().filter(t->t.endsWith("mm")).count()==1&&during.texts.stream().noneMatch(t->t.contains("光学")||t.contains("裁切")||t.contains("主摄")),"Dragging shows one exact current millimetre caption without optical-source text");h.event(3,52);check(!millimetres(draw(h)),"Cancelling an active drag immediately removes its millimetre caption");
+        h=new Harness();h.event(0,168);h.event(2,168-8-72*1.12f);h.event(1,168-8-72*1.12f);boolean settling=millimetres(draw(h));ValueAnimator.finishAll();check(settling&&!millimetres(draw(h)),"Snap settling keeps its caption while moving and removes it when animation ends");
+        h=new Harness();h.wheel.tapped(6);boolean quiet=!millimetres(draw(h));h.event(0,168);h.event(2,100);h.event(5,100);quiet&=!millimetres(draw(h));h.event(0,168);h.event(2,100);h.wheel.setEnabled(false);ValueAnimator.finishAll();quiet&=!millimetres(draw(h));check(quiet,"Direct focal taps, multi-finger cancellation and capture disabling leave the reel caption hidden");
         return passed;
     }
 }
