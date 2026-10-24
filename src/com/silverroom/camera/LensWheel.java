@@ -96,9 +96,11 @@ final class LensWheel extends FilmWheel {
         float left=cx-selected.width/2,top=cy-selected.height/2,right=cx+selected.width/2,bottom=cy+selected.height/2;
         brush.setStyle(Paint.Style.FILL);brush.setColor(tone(AppTheme.ACTIVE));c.drawRoundRect(left,top,right,bottom,dp(10),dp(10),brush);
         brush.setStyle(Paint.Style.STROKE);brush.setStrokeWidth(dp(.8f));brush.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(left,top,right,bottom,dp(10),dp(10),brush);brush.setStyle(Paint.Style.FILL);
-        for(int i=0;i<7;i++){float distance=i-state.position(),x=cx+distance*slot;if(Math.abs(distance)<.74f||x< -slot||x>getWidth()+slot)continue;drawNumber(c,title(i),"",x,cy,slot,sp,enabled[i]?CREAM:MUTED,enabled[i]?195:75,0);}
+        for(int i=0;i<7;i++){float distance=i-state.position(),x=cx+distance*slot;if(Math.abs(distance)<.74f||x< -slot||x>getWidth()+slot)continue;
+            float depth=Math.min(1.8f,Math.abs(distance)),scale=1-depth*.19f;int alpha=Math.round((1-Math.min(.82f,depth*.43f))*(enabled[i]?255:75));
+            c.save();c.translate(x,cy);c.scale(scale,scale);drawNumber(c,title(i),"",0,0,slot,sp,enabled[i]?CREAM:MUTED,alpha,0);c.restore();}
         drawNumber(c,number,captionVisible?number+"mm":"",cx,cy,slot,sp,ZoomScale.allowed(mm,enabled)?AMBER:MUTED,isEnabled()&&ZoomScale.allowed(mm,enabled)?255:75,emphasis);
-        brush.setColor(MUTED);brush.setAlpha(110);brush.setStrokeWidth(dp(.7f));for(int tick=0;tick<=24;tick++){float x=cx+(tick/4f-state.position())*slot;if(x<dp(4)||x>getWidth()-dp(4))continue;c.drawLine(x,getHeight()-dp(tick%4==0?4:2),x,getHeight(),brush);}brush.setAlpha(255);
+        brush.setColor(MUTED);brush.setAlpha(110);brush.setStrokeWidth(dp(.7f));for(int tick=0;tick<=24;tick++){float x=cx+(tick/4f-state.position())*slot;if(x<dp(4)||x>getWidth()-dp(4))continue;c.drawLine(x,getHeight()-dp(tick%4==0?4:2),x,getHeight(),brush);}brush.setAlpha(255);drawEdges(c);
     }
     private void drawNumber(Canvas c,String title,String note,float x,float y,float slot,float sp,int color,int alpha,float grow){
         c.save();c.translate(x,y);brush.setTypeface(Typeface.create("sans-serif-medium",0));brush.setTextAlign(Paint.Align.CENTER);brush.setFontFeatureSettings("tnum");brush.setTextSize((18+2*grow)*sp);NumberLayout layout=numberLayout(title,brush,slot,grow);brush.setColor(color);brush.setAlpha(alpha);drawTitle(c,title,brush,layout);

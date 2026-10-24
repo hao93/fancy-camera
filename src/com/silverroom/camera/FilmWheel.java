@@ -53,9 +53,14 @@ class FilmWheel extends View {
             paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?18:14));paint.setColor(selected?AMBER:CREAM);paint.setAlpha(alpha);drawTitle(c,title(id),dp(compact()?-1:1)*font,paint,slot);
             paint.setTypeface(Typeface.create("sans-serif",0));paint.setFontFeatureSettings("tnum");paint.setTextSize(sp(12));paint.setColor(selected&&!compact()?AMBER:MUTED);paint.setAlpha(alpha);c.drawText(fit(selected&&!compact()?FilmStrength.percent(strength)+"%":subtitle(id),slot-dp(12)),0,dp(compact()?14:18)*font,paint);c.restore();
         }
-        paint.setAlpha(255);paint.setShader(new LinearGradient(0,0,dp(22),0,INK,(INK&0x00ffffff),Shader.TileMode.CLAMP));c.drawRect(0,0,dp(22),getHeight(),paint);
-        paint.setShader(new LinearGradient(getWidth()-dp(22),0,getWidth(),0,(INK&0x00ffffff),INK,Shader.TileMode.CLAMP));c.drawRect(getWidth()-dp(22),0,getWidth(),getHeight(),paint);paint.setShader(null);
+        drawEdges(c);
         if(!compact()){paint.setColor(AMBER);Path marker=new Path();marker.moveTo(cx,getHeight()-dp(4));marker.lineTo(cx-dp(2.5f),getHeight());marker.lineTo(cx+dp(2.5f),getHeight());marker.close();c.drawPath(marker,paint);}
+    }
+    /** Shared edge veil for both reels; keep the centered selection clear in either theme. */
+    protected void drawEdges(Canvas canvas){
+        if(getWidth()<=0||getHeight()<=0)return;float edge=Math.min(dp(22),getWidth()/4f);paint.setStyle(Paint.Style.FILL);paint.setAlpha(255);
+        paint.setShader(new LinearGradient(0,0,edge,0,INK,INK&0x00ffffff,Shader.TileMode.CLAMP));canvas.drawRect(0,0,edge,getHeight(),paint);
+        paint.setShader(new LinearGradient(getWidth()-edge,0,getWidth(),0,INK&0x00ffffff,INK,Shader.TileMode.CLAMP));canvas.drawRect(getWidth()-edge,0,getWidth(),getHeight(),paint);paint.setShader(null);
     }
     private String fit(String text,float width){if(paint.measureText(text)<=width)return text;int end=text.length();while(end>0&&paint.measureText(text.substring(0,end)+"…")>width)end--;return text.substring(0,end)+"…";}
     @Override public boolean onTouchEvent(MotionEvent e){
