@@ -15,5 +15,6 @@ public final class ZoomScale {
     }
     public static float snap(float position,boolean[] enabled){float p=constrain(position,enabled);if(!Float.isFinite(p))return p;int i=Math.round(p);return enabled[i]&&Math.abs(p-i)<=.18f?i:p;}
     public static float sessionFocal(float mm){int base=LensPlan.base(mm);return base==14?22.9f:base==23?84.9f:230;}
+    public static String magnification(float mm){LensPlan.base(mm);return label(Math.round(mm/23f*10)/10f)+"×";}
     public static String label(float mm){return mm==Math.round(mm)?Integer.toString(Math.round(mm)):String.format(java.util.Locale.US,"%.1f",mm);}
 }
