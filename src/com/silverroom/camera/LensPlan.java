@@ -31,10 +31,8 @@ public final class LensPlan {
         }return best;
     }
     public static int base(float focal) {
-        if(focal==14)return 14;
-        if(focal==23||focal==35||focal==50)return 23;
-        if(focal==85||focal==135||focal==230)return 85;
-        throw new IllegalArgumentException("Unsupported focal length: "+focal);
+        if(!Float.isFinite(focal)||focal<14||focal>230)throw new IllegalArgumentException("Unsupported focal length: "+focal);
+        return focal<23?14:focal<85?23:85;
     }
     public static float crop(float focal){return focal/base(focal);}
     public static int identify(float equivalent){

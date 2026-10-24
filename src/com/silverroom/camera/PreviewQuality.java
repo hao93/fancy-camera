@@ -35,6 +35,7 @@ public final class PreviewQuality {
         int rw=Math.min(w,(((int)Math.ceil(w/(double)crop)+3)/2)*2),rh=Math.min(h,(((int)Math.ceil(h/(double)crop)+3)/2)*2);
         return new int[]{((w-rw)/2)&~1,((h-rh)/2)&~1,rw,rh};
     }
+    public static boolean covers(int w,int h,int[] roi,float crop){return roi!=null&&roi.length==4&&roi[0]<=w*(1-1/crop)/2+.1f&&roi[1]<=h*(1-1/crop)/2+.1f&&roi[0]+roi[2]>=w*(1+1/crop)/2-.1f&&roi[1]+roi[3]>=h*(1+1/crop)/2-.1f;}
     /** Maps full-source UVs into the copied ROI; compose after the existing uCrop. */
     public static void transform(float[] m,int w,int h,int[] roi){
         java.util.Arrays.fill(m,0);m[0]=w/(float)roi[2];m[5]=h/(float)roi[3];m[10]=m[15]=1;m[12]=-roi[0]/(float)roi[2];m[13]=-(h-roi[1]-roi[3])/(float)roi[3];

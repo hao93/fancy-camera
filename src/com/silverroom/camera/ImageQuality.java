@@ -16,5 +16,5 @@ public final class ImageQuality {
     public static float skin(float r,float g,float b){float spread=r-b;if(r<=g||g<=b||r-g>.35f||g-b>.30f||spread<.03f)return 0;return clamp((Math.min(r,1)-.12f)/.28f,0,1)*clamp((.65f-spread)/.3f,0,1);}
     public static float[] grey(float r,float g,float b){if(Math.min(r,Math.min(g,b))<.12f||Math.max(r,Math.max(g,b))>.88f)throw new IllegalArgumentException("灰卡过暗或过亮，请调整光线");float mean=(r+g+b)/3;return new float[]{clamp(mean/r,.85f,1.15f),clamp(mean/g,.85f,1.15f),clamp(mean/b,.85f,1.15f)};}
     public static long previewBudget(float mm,int profile,int mode){long budget=PreviewQuality.budget(mm,profile);return mode==1?Math.min(budget,1920L*1080):budget;}
-    public static String optical(float mm){int base=LensPlan.base(mm);return ((int)mm)+"mm · "+(LensPlan.crop(mm)<1.01?"原生光学":base+"mm 光学 + "+String.format(java.util.Locale.US,"%.2f× 裁切",LensPlan.crop(mm)));}
+    public static String optical(float mm){int base=LensPlan.base(mm);return ZoomScale.label(mm)+"mm · "+(LensPlan.crop(mm)<1.01?"原生光学":base+"mm 光学 + "+String.format(java.util.Locale.US,"%.2f× 裁切",LensPlan.crop(mm)));}
 }

@@ -1,6 +1,18 @@
-# Fancy Camera · Android 2.1.2
+# Fancy Camera · Android 2.2.0
 
 以彩色暗房和机械相机为灵感的摄影应用，使用原生 Java、Camera2 和 OpenGL ES 2.0。拍摄与暗房离线运行，无第三方库、应用账号或广告；联网仅用于读取和下载 GitHub Release 更新。
+
+## 2.2.0：连续焦段与取景切换优化
+
+拍摄页焦段滚轮改为连续选择，采用预设锚点间的对数映射，显示精度0.1mm。可以停在41.8mm等中间值，松手时距预设档位不超过0.18个刻度间距才吸附；14、23、35、50、85、135、230mm仍可直接点击。中心显示实际值，滑动及惯性实时更新，原有数字旋转、中文固定、长按诊断、键盘及无障碍入口保留。拍摄禁用或取消手势时停止后续变焦。
+
+LensPlan连续路由：14–22.9mm使用14mm超广角，23–84.9mm使用23mm主摄，85–230mm使用85mm长焦；只在各自光学原生视野基础上裁切，不替代缺失镜头。不可用范围从连续滚动中排除。35/50仍基于主摄，135/230仍基于长焦。照片保存记录实际小数焦段，详情及排版信息不再截断为整数。
+
+CameraEngine以40ms窗口合并最新焦段请求，同一镜头仅更新裁切，只有光学来源变化才关闭并重开设备。预览会话按整组最高裁切需求选取公开尺寸，避免滑过清晰度阈值反复重建，仍保留预览模式、纹理限制、帧时长和兼容方案降级。仅已有测光锁定需要解除时才重发相机控制请求；焦段尚在队列或物理镜头尚未返回新取景时禁止拍照。
+
+PreviewHold在GL线程缓存最近完整渲染帧，等待新镜头、有效帧或覆盖目标裁切的YUV区域时，向每个交换缓冲重新绘制缓存，避免默认帧缓冲清空导致黑屏。GPU内复制，无CPU逐帧截图读回；同尺寸复用纹理，视口变化不拉伸旧画面，EGL重建重新开始，后台失效。YUV转换保留25%裁切余量，接受同代在途帧；只有ROI确实覆盖当前视野才复用。跨光学镜头仍需固件重新配置，等待期间会短暂停留上一帧；失败明确提示且不允许把缓存当作就绪画面拍摄。
+
+765项Java回归通过，含新增15项连续滚轮、17项执行真实焦段请求及绘制保护/GPU缓存代码的受控检查，以及1项小数焦段元数据检查；四套原有实际GLSL、四套mediump兼容及新增保留帧着色器编译/链接通过。主机GPU命令追踪和接口替身不能代替vivo真机流畅度、镜头切换时间、GPU驱动及黑屏实测，本次未安装手机。详见[2.2.0 Release说明](releases/2.2.0.md)。版本2.2.0 / code33，保留原包名和签名，发布GitHub Release，不通过ADB安装。
 
 ## 2.1.2：焦段数字与工具图标随持机旋转
 
@@ -407,7 +419,7 @@ EV转盘支持手指沿圆周旋转：顺时针增加，逆时针减少，270°�
 
 `install.ps1`验证APK包名/原签名和本地配置中已配对手机的序列号/型号，再执行`adb install -r --no-incremental`，并回读安装版本。无线连接失败会保留APK并明确提示安装未确认，不能将构建完成当作安装成功。配置在相邻`adb-state/device.json`，设备地址变化时更新该文件；同目录配对密钥不得打入源码包。单独验证连接而不安装：`install.ps1 -Apk <APK路径> -VerifyOnly`。
 
-Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.1.2.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.1.2.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
+Windows、JDK 17+、Android SDK Platform 35、Build Tools 35.0.0；设置 JAVA_HOME 与 ANDROID_HOME。运行 build.ps1 -Variant standard，输出 build/standard/Silverroom-2.2.0.apk。运行 build.ps1 -Variant compat-m，输出 build/compat-m/Silverroom-2.2.0.apk。构建只在对应 build 目录写入派生 Manifest，不修改源码 Manifest。两种包使用同一 Java 源码。原签名密钥及密码从本地相邻`adb-state/signing.json`读取，也可通过`FANCY_CAMERA_KEYSTORE`和`FANCY_CAMERA_KEYSTORE_PASSWORD`环境变量提供；缺失时构建失败，不生成替代密钥。只有同一标识且同一密钥签名才能覆盖既有安装。源码包不包含签名私钥、密码、SDK 或完整 JDK。
 
 每次发布先递增Manifest的versionCode及versionName，编写`releases/<版本>.md`，然后执行默认标准构建。`publish.ps1`只提交源文件白名单，拒绝私钥/构建产物/配对状态，推送main与`v<版本>`标签，生成标准APK、更新清单及校验值。上传草稿后读取GitHub返回的资源大小和digest逐一核验，通过才公开Release。已公开版本不覆盖、标签不强推；有变化应增加版本。仓库配置位于`release.json`，App内固定更新源位于`UpdatePolicy.java`，两处必须一致。
 
