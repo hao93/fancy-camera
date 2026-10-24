@@ -20,16 +20,13 @@ final class Controls {
         @Override protected void drawableStateChanged(){super.drawableStateChanged();invalidate();}
         private void inside(Canvas c,String text,float x,float y,float width,float height,float scale,float sp){p.setStyle(Paint.Style.FILL);p.setTypeface(Typeface.create("sans-serif-medium",0));p.setTextAlign(Paint.Align.CENTER);p.setFontFeatureSettings("tnum");p.setTextSize(Math.min(10*sp/scale,height));float fit=Math.min(1,width/Math.max(1,p.measureText(text)));p.setTextSize(p.getTextSize()*fit);Paint.FontMetrics fm=p.getFontMetrics();c.drawText(text,x,y-(fm.ascent+fm.descent)/2,p);p.setStyle(Paint.Style.STROKE);}
         @Override protected void onDraw(Canvas c){
-            float d=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f,scale=d*(kind==FRAME?32:22)/24f;
-            p.setColor(active?AMBER:(kind==FRAME||kind==SETTINGS?CREAM:MUTED));p.setAlpha(isEnabled()?255:90);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.7f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
+            float d=getResources().getDisplayMetrics().density,sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f,scale=d*22/24f;
+            p.setColor(active?AMBER:(kind==SETTINGS?CREAM:MUTED));p.setAlpha(isEnabled()?255:90);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.7f);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);
             c.save();c.rotate(iconAngle,cx,cy);c.translate(cx-12*scale,cy-12*scale);c.scale(scale,scale);
             if(kind==FLASH){Path bolt=new Path();bolt.moveTo(14,2);bolt.lineTo(5,14);bolt.lineTo(11,14);bolt.lineTo(9,22);bolt.lineTo(19,9);bolt.lineTo(13,9);bolt.close();c.drawPath(bolt,p);if(!active)c.drawLine(3,3,21,21,p);else if("A".equals(badge))inside(c,"A",20,4,6,6,scale,sp);}
             if(kind==GRID){c.drawRoundRect(3,3,21,21,2,2,p);c.drawLine(9,3,9,21,p);c.drawLine(15,3,15,21,p);c.drawLine(3,9,21,9,p);c.drawLine(3,15,21,15,p);}
             if(kind==TIMER){c.drawCircle(12,13,8,p);c.drawLine(9,2,15,2,p);c.drawLine(12,5,12,2,p);c.drawLine(18,6,20,4,p);if(active){String seconds=badge.endsWith("s")?badge.substring(0,badge.length()-1):badge;inside(c,seconds,12,13,12,10,scale,sp);}else{c.drawLine(12,13,12,8,p);c.drawLine(12,13,16,14,p);}}
-            if(kind==FRAME){
-                if(badge.contains(":")){float ratio="1:1".equals(badge)?1:"3:2".equals(badge)?1.5f:"16:9".equals(badge)?16f/9:4f/3,w=Math.min(22,18*ratio),h=w/ratio;c.drawRoundRect(12-w/2,12-h/2,12+w/2,12+h/2,1.5f,1.5f,p);inside(c,badge,12,12,w-4,h-4,scale,sp);}
-                else{c.drawLine(3,8,3,3,p);c.drawLine(3,3,8,3,p);c.drawLine(16,3,21,3,p);c.drawLine(21,3,21,8,p);c.drawLine(3,16,3,21,p);c.drawLine(3,21,8,21,p);c.drawLine(16,21,21,21,p);c.drawLine(21,21,21,16,p);c.drawLine(8,16,16,8,p);}
-            }
+            if(kind==FRAME){float ratio="1:1".equals(badge)?1:"3:2".equals(badge)?1.5f:"16:9".equals(badge)?16f/9:"4:3".equals(badge)?4f/3:.7f,w=ratio<1?14:ratio==1?18:20,h=w/ratio;c.drawRoundRect(12-w/2,12-h/2,12+w/2,12+h/2,1.5f,1.5f,p);}
             if(kind==HISTOGRAM){Path plot=new Path();plot.moveTo(3,20);plot.lineTo(3,15);plot.lineTo(6,15);plot.lineTo(6,9);plot.lineTo(9,9);plot.lineTo(9,4);plot.lineTo(12,4);plot.lineTo(12,11);plot.lineTo(15,11);plot.lineTo(15,7);plot.lineTo(18,7);plot.lineTo(18,16);plot.lineTo(21,16);plot.lineTo(21,20);c.drawPath(plot,p);c.drawLine(3,20,21,20,p);if(!active)c.drawLine(3,3,21,21,p);}
             if(kind==SETTINGS){Path gear=new Path();for(int i=0;i<32;i++){double a=Math.toRadians(i*11.25);float r=i%4<2?10:8,x=12+(float)Math.cos(a)*r,y=12+(float)Math.sin(a)*r;if(i==0)gear.moveTo(x,y);else gear.lineTo(x,y);}gear.close();c.drawPath(gear,p);c.drawCircle(12,12,3,p);}
             c.restore();if(isFocused()||isPressed()){p.setStrokeWidth(d*1.5f);c.drawLine(cx-5*d,cy+18*d,cx+5*d,cy+18*d,p);}
