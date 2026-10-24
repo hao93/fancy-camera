@@ -8,8 +8,10 @@ import static com.silverroom.camera.Controls.*;
 /** Scrollable settings/tools surface; common controls have at least 48dp targets. */
 final class UtilitySheet extends ThemedDialog {
     interface Build{void build(UtilitySheet sheet);}interface Slide{void value(float value);}
-    final MainActivity a;private final String title;private final Build build;LinearLayout content;private final java.util.List<Runnable> watchers=new java.util.ArrayList<>();private boolean watching;
+    final MainActivity a;private final String title;private final Build build;LinearLayout content;private final java.util.List<Runnable> watchers=new java.util.ArrayList<>();private boolean watching,livePreview;
     UtilitySheet(MainActivity owner,String name,Build body){super(owner);a=owner;title=name;build=body;}
+    UtilitySheet previewVisible(){livePreview=true;return this;}
+    @Override protected boolean keepPreviewVisible(){return livePreview;}
     int target(){return UiSpec.toolHeight(a.getResources().getConfiguration().fontScale);}
     int dp(float n){return a.dp(n);}
     @Override protected void onCreate(Bundle state){super.onCreate(state);requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout root=a.column();root.setPadding(dp(16),dp(8),dp(16),dp(16));root.setBackground(a.bg(INK,UiSpec.RADIUS,0));LinearLayout head=a.row();head.addView(a.text(title,20,CREAM),new LinearLayout.LayoutParams(0,dp(target()),1));a.add(head,a.button("完成",this::dismiss),60,target());a.add(root,head,-1,target());ScrollView scroll=new ScrollView(a){@Override protected void onMeasure(int w,int h){int cap=(int)(a.getResources().getDisplayMetrics().heightPixels*.82f)-dp(78);super.onMeasure(w,MeasureSpec.makeMeasureSpec(Math.max(dp(80),cap),MeasureSpec.AT_MOST));}};scroll.setFillViewport(false);content=a.column();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,-2));build.build(this);setContentView(root);getWindow().setBackgroundDrawableResource(android.R.color.transparent);getWindow().setGravity(Gravity.BOTTOM);getWindow().setLayout(-1,-2);}

@@ -5,6 +5,7 @@ public final class UiSpec {
     private UiSpec(){}
     public static final int TITLE=20,BODY=14,CAPTION=12,TARGET=48,RADIUS=12;
     public static int toolHeight(float font){return Math.max(48,(int)Math.ceil(24+24*font));}
+    public static int cameraToolsHeight(){return TARGET;}
     public static int captureHeight(float font){return Math.max(96,60+(int)Math.ceil(36*Math.max(1,font)));}
     public static int captureSide(int width){return Math.max(100,Math.min(112,(width-90)/2));}
     public static int galleryActionHeight(float font){return Math.max(48,(int)Math.ceil(18*Math.max(1,font)+28));}
