@@ -31,12 +31,12 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     public void removeHistogram(HistogramSink sink){if(histogramChannel.remove(sink))view.queueEvent(()->{if(histogramChannel.get()==null&&histogramReadback!=null)histogramReadback.releaseTarget();});}
     public interface Listener {void status(String text);void picture(Shot shot);void error(String message);void lensesChanged();void metering(int state,String reason);default void orientationChanged(int degrees){}default void uiChanged(CameraUiState state){}}
     public static final class Shot {
-        public final byte[] jpeg;public final int clockwise;public final float crop;public final String lens;public final CaptureOrientation.Snapshot orientation;public final File dng;public final CaptureInfo info;public final String rawNote;public final long capturedAt;public final int offsetMinutes;
-        Shot(byte[] bytes,int rotation,float factor,String source,CaptureOrientation.Snapshot pose,File raw,CaptureInfo actual,String note,long when,int offset){capturedAt=when;offsetMinutes=offset;jpeg=bytes;clockwise=rotation;crop=factor;lens=source;orientation=pose;dng=raw;info=actual;rawNote=note;}
+        public final byte[] jpeg;public final int clockwise;public final float crop;public final String lens;public final CaptureOrientation.Snapshot orientation;public final File dng;public final CaptureInfo info;public final String rawNote;public final long capturedAt,ticket;public final int offsetMinutes;
+        Shot(byte[] bytes,int rotation,float factor,String source,CaptureOrientation.Snapshot pose,File raw,CaptureInfo actual,String note,long when,int offset,long clientTicket){ticket=clientTicket;capturedAt=when;offsetMinutes=offset;jpeg=bytes;clockwise=rotation;crop=factor;lens=source;orientation=pose;dng=raw;info=actual;rawNote=note;}
     }
     private static final class ShotSpec {
-        final float crop;final int rotation;final String description;final CaptureOrientation.Snapshot orientation;final long capturedAt;final int offsetMinutes;
-        ShotSpec(float c,CaptureOrientation.Snapshot pose,String d){capturedAt=System.currentTimeMillis();offsetMinutes=java.util.TimeZone.getDefault().getOffset(capturedAt)/60000;crop=c;rotation=pose.rotation;orientation=pose;description=d;}
+        final float crop;final int rotation;final String description;final CaptureOrientation.Snapshot orientation;final long capturedAt,ticket;final int offsetMinutes;
+        ShotSpec(float c,CaptureOrientation.Snapshot pose,String d,long clientTicket){ticket=clientTicket;capturedAt=System.currentTimeMillis();offsetMinutes=java.util.TimeZone.getDefault().getOffset(capturedAt)/60000;crop=c;rotation=pose.rotation;orientation=pose;description=d;}
     }
     final Activity activity;final Listener listener;final CameraManager manager;
     private final OrientationEventListener orientationListener;private volatile int deviceOrientation;
@@ -55,7 +55,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private CameraCharacteristics chars,ownerChars;private Route route;
     private final ArrayList<Route> routes=new ArrayList<>();private final Set<String> failed=new HashSet<>(),verified=new HashSet<>();
     private volatile Set<Integer> available=Collections.emptySet(),detected=Collections.emptySet();private volatile boolean front,scanned,previewReady;
-    private volatile float requestedMm=23,previewCrop=1;private volatile boolean active;private boolean splitPreview,stillOnly,captureInFlight;private volatile boolean previewResultSeen,externalFrameReady;
+    private volatile float requestedMm=23,previewCrop=1;private volatile boolean active;private boolean splitPreview,stillOnly;private volatile boolean captureInFlight;private volatile boolean previewResultSeen,externalFrameReady;
     private final MeteringLock meter=new MeteringLock();private long focusEpoch;private float lockX=.5f,lockY=.5f;private Float lockDistance;private Long lockExposure,lockDuration;private Integer lockIso;
     private int generation,flashMode;private volatile int sessionGeneration;private float ev;private Runnable pendingStill;private ShotSpec pendingShot;
     private volatile boolean frame;private volatile int sensorOrientation=90;private volatile Size previewSize=new Size(1440,1080);
@@ -309,11 +309,11 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         return true;
     }
     private void update(){if(session==null||request==null||stillOnly)return;try{controls(request);lastReport=0;session.setRepeatingRequest(request.build(),repeating,handler);listener.status(description());}catch(Exception e){if(!previewReady)recover("首帧请求失败："+e.getMessage());else cameraError("镜头参数更新失败："+e.getMessage());}}
-    public void shoot(){final int orientationAtShutter=deviceOrientation;handler.post(()->{
+    public void shoot(long ticket){final int orientationAtShutter=deviceOrientation;handler.post(()->{
         if(focalPending()||session==null||device==null||!previewReady||captureInFlight){cameraError("所选光学镜头尚未就绪");return;}
-        if(meter.active()&&!meter.locked()){cameraError("正在锁定对焦和曝光，请稍候");return;}if(meter.locked()&&splitPreview&&!canTransferLock()){cameraError("当前镜头分时拍照无法保留锁定，请先解除 AE/AF 锁定");return;}captureInFlight=true;pendingShot=new ShotSpec(previewCrop,new CaptureOrientation.Snapshot(sensorOrientation,orientationAtShutter,front),description());
+        if(meter.active()&&!meter.locked()){cameraError("正在锁定对焦和曝光，请稍候");return;}if(meter.locked()&&splitPreview&&!canTransferLock()){cameraError("当前镜头分时拍照无法保留锁定，请先解除 AE/AF 锁定");return;}captureInFlight=true;pendingShot=new ShotSpec(previewCrop,new CaptureOrientation.Snapshot(sensorOrientation,orientationAtShutter,front),description(),ticket);view.requestRender();
         final ShotSpec spec=pendingShot;final int shotGeneration=generation;final Route chosen=route;final float shotMm=requestedMm,shotEv=ev;
-        rawCapture=new RawCapture(activity.getCacheDir(),chars,encoder,handler,spec.rotation,rawReader!=null,rawWanted?rawState:"",(bytes,dng,actual,note)->{if(shotGeneration!=generation||pendingShot!=spec){if(dng!=null)dng.delete();return;}pendingShot=null;rawCapture=null;captureInFlight=false;CaptureInfo info=captureInfo(actual,shotMm,shotEv,chosen);if(dng!=null)rawState="已实际输出DNG";else if(rawWanted&&!note.isEmpty())rawState=note;listener.picture(new Shot(bytes,spec.rotation,spec.crop,spec.description,spec.orientation,dng,info,note,spec.capturedAt,spec.offsetMinutes));if(splitPreview&&active){clearMetering();createSession(false);}});
+        rawCapture=new RawCapture(activity.getCacheDir(),chars,encoder,handler,spec.rotation,rawReader!=null,rawWanted?rawState:"",(bytes,dng,actual,note)->{if(shotGeneration!=generation||pendingShot!=spec){if(dng!=null)dng.delete();return;}pendingShot=null;rawCapture=null;captureInFlight=false;CaptureInfo info=captureInfo(actual,shotMm,shotEv,chosen);if(dng!=null)rawState="已实际输出DNG";else if(rawWanted&&!note.isEmpty())rawState=note;listener.picture(new Shot(bytes,spec.rotation,spec.crop,spec.description,spec.orientation,dng,info,note,spec.capturedAt,spec.offsetMinutes,spec.ticket));if(splitPreview&&active){clearMetering();createSession(false);}});
         event("快门姿态：手机 "+pendingShot.orientation.device+"° / 传感器 "+sensorOrientation+"° / 成片像素旋转 "+pendingShot.rotation+"°");
         final ShotSpec expectedShot=pendingShot;final int expectedGeneration=generation;
         handler.postDelayed(()->{if(expectedGeneration==generation&&captureInFlight&&pendingShot==expectedShot){close();view.requestRender();open();cameraError("所选镜头拍摄超时，已重新连接，请重试");}},rawReader!=null?45000:14000);
@@ -427,6 +427,8 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     }
     @Override public void onDrawFrame(GL10 gl){
         latchExternalFrame();
+        // Still-output reconfiguration may submit empty buffers. Keep the last complete frame until the JPEG arrives.
+        if(active&&captureInFlight&&previewHold!=null&&previewHold.draw(width,height))return;
         boolean raw=yuvPreview;YuvFrame pixels=yuvFrame;
         if(!active||texture==null||!previewReady||(raw&&(pixels==null||!PreviewQuality.covers(pixels.sourceWidth,pixels.sourceHeight,pixels.roi,previewCrop)))){
             if(active&&previewHold!=null&&previewHold.draw(width,height))return;
