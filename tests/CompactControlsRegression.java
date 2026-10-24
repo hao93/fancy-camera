@@ -18,15 +18,15 @@ public final class CompactControlsRegression {
         check(LensWheelPolicy.nearest(3,new boolean[0])==-1,"An empty availability update cannot invent a lens");
         check(LensWheelPolicy.nearest(5.5f,mainOnly)==3,"Grey telephoto gaps cannot become selected fling endpoints");
         check(LensWheelPolicy.nearest(Float.NaN,mainOnly)==-1,"Invalid lens coordinates cannot choose an arbitrary optical sensor");
-        boolean within=true,roundTrip=true,monotonic=true;float previous=-3;
-        for(int i=0;i<=40;i++){float value=ExposureValue.value(i);within&=value>=-2&&value<=2;roundTrip&=ExposureValue.progress(value)==i;monotonic&=value>previous;previous=value;}
+        boolean within=true,roundTrip=true,monotonic=true;float previous=-4;
+        for(int i=0;i<=60;i++){float value=ExposureValue.value(i);within&=value>=-3&&value<=3;roundTrip&=ExposureValue.progress(value)==i;monotonic&=value>previous;previous=value;}
         check(within,"Every slider tick stays inside the supported UI exposure range");
-        check(roundTrip,"All 41 EV ticks round-trip between popup and compact value");
+        check(roundTrip,"All 61 soft exposure ticks round-trip between popup and compact value");
         check(monotonic,"Moving the EV slider right always increases the requested exposure");
-        check(near(ExposureValue.value(-100),-2)&&near(ExposureValue.value(100),2),"EV slider values clamp at both limits");
-        float value=0;for(int i=0;i<20;i++)value=ExposureValue.clamp(value+.1f);check(near(value,2),"Repeated plus taps reach +2 without floating-point drift");
-        for(int i=0;i<40;i++)value=ExposureValue.clamp(value-.1f);check(near(value,-2),"Repeated minus taps reach -2 without floating-point drift");
-        check(near(ExposureValue.clamp(100),2)&&near(ExposureValue.clamp(-100),-2),"Out-of-range direct EV values are clamped");
+        check(near(ExposureValue.value(-100),-3)&&near(ExposureValue.value(100),3),"EV slider values clamp at both limits");
+        float value=0;for(int i=0;i<30;i++)value=ExposureValue.clamp(value+.1f);check(near(value,3),"Repeated plus taps reach +3 without floating-point drift");
+        for(int i=0;i<60;i++)value=ExposureValue.clamp(value-.1f);check(near(value,-3),"Repeated minus taps reach -3 without floating-point drift");
+        check(near(ExposureValue.clamp(100),3)&&near(ExposureValue.clamp(-100),-3),"Out-of-range direct EV values are clamped");
         check(near(ExposureValue.clamp(Float.NaN),0)&&near(ExposureValue.clamp(Float.POSITIVE_INFINITY),0),"Invalid EV input safely resets to zero");
         check(ExposureValue.label(0).equals("+0.0")&&ExposureValue.label(-.4f).equals("-0.4"),"Compact EV values retain a sign and one decimal place");
         List<Integer> all=new ArrayList<>();for(int id=0;id<FilmCatalog.NAMES.length;id++)all.add(id);FilmWheelState wheel=new FilmWheelState();wheel.reset(all,17);

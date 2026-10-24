@@ -13,8 +13,10 @@ public final class ExposureMatch {
     }
     public static final class Correction {
         public final float requested,amount;public final Float reported;public final String method;public final Integer previewBoost,captureBoost;
-        Correction(float target,Float actual,float ev,String how,Integer before,Integer after){previewBoost=before;captureBoost=after;requested=target;reported=actual!=null&&Float.isFinite(actual)?actual:null;amount=Float.isFinite(ev)?Math.max(-4,Math.min(4,Math.abs(ev)<.08f?0:ev)):0;method=how;}
+        Correction(float target,Float actual,float ev,String how,Integer before,Integer after){previewBoost=before;captureBoost=after;requested=target;reported=actual!=null&&Float.isFinite(actual)?actual:null;amount=Float.isFinite(ev)?Math.max(-4,Math.min(4,Math.abs(ev)<.0001f?0:ev)):0;method=how;}
     }
+    private static Correction checked(float target,Float reported,float delta,String method,Integer before,Integer after){return new Correction(target,reported,Math.abs(delta)<.08f?0:delta,method,before,after);}
+    public static Correction withFine(Correction match,float fine){float extra=Float.isFinite(fine)?fine:0;return new Correction(match.requested+extra,match.reported,match.amount+extra,match.method+(Math.abs(extra)>.0001f?"+fine":""),match.previewBoost,match.captureBoost);}
     public static Correction compare(Sample preview,float desired,Float reported,long ns,int iso,float aperture,boolean manual,boolean flash){return compare(preview,desired,reported,ns,iso,aperture,manual,flash,null);}
     public static Correction compare(Sample preview,float desired,Float reported,long ns,int iso,float aperture,boolean manual,boolean flash,Integer digitalBoost){
         Integer before=preview==null?null:preview.boost,after=digitalBoost!=null&&digitalBoost>0?digitalBoost:null;
@@ -22,9 +24,9 @@ public final class ExposureMatch {
             double ratio=(double)preview.time*preview.iso/((double)ns*iso);
             if(before!=null&&after!=null)ratio*=before/(double)after;
             if(preview.aperture>0&&aperture>0)ratio*=aperture*aperture/(preview.aperture*preview.aperture);
-            return new Correction(desired,reported,(float)(Math.log(ratio)/Math.log(2)),manual?"sensor-transfer":"preview-sensor-match",before,after);
+            return checked(desired,reported,(float)(Math.log(ratio)/Math.log(2)),manual?"sensor-transfer":"preview-sensor-match",before,after);
         }
-        if(!manual&&reported!=null&&Float.isFinite(reported))return new Correction(desired,reported,desired-reported,"reported-compensation",before,after);
-        return new Correction(desired,reported,0,manual?"sensor-transfer-unverified":"metadata-unavailable",before,after);
+        if(!manual&&reported!=null&&Float.isFinite(reported))return checked(desired,reported,desired-reported,"reported-compensation",before,after);
+        return checked(desired,reported,0,manual?"sensor-transfer-unverified":"metadata-unavailable",before,after);
     }
 }

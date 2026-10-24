@@ -1,6 +1,6 @@
 package com.silverroom.camera;
 
-/** Immutable snapshot of usable Camera2 compensation ticks inside the UI's +/-2EV range. */
+/** Immutable Camera2 ticks inside the previous +/-2EV hardware envelope; soft UI levels use ExposureScale. */
 public final class ExposureLimits {
     public static final ExposureLimits NONE=new ExposureLimits(0,0,0);
     public final int low,high;public final float step;

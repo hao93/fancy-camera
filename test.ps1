@@ -67,7 +67,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Workflow regression compilation failed' }
 New-Item -ItemType Directory -Force (Join-Path $projectRoot 'build\expansion-tests') | Out-Null
 & "$jdkRoot\bin\java.exe" -cp $workflowClasspath com.silverroom.camera.ExpansionRegression "$projectRoot\build\expansion-tests"
 if ($LASTEXITCODE -ne 0) { throw 'Quality, RAW policy, recipe or recycle regression failed' }
-$printSources=@('ExposureLimits','FinderGesture','CompositionState','LevelMath','PrintOptions','PrintLayout','PrintMetadata','PrintRenderer','PrintBatch','GuideOverlay') | ForEach-Object { Join-Path $projectRoot "src\com\silverroom\camera\$_.java" }
+$printSources=@('ExposureLimits','ExposureScale','FinderGesture','CompositionState','LevelMath','PrintOptions','PrintLayout','PrintMetadata','PrintRenderer','PrintBatch','GuideOverlay') | ForEach-Object { Join-Path $projectRoot "src\com\silverroom\camera\$_.java" }
 $printFakes=@('Bitmap','Paint','Canvas','RectF','Typeface') | ForEach-Object { Join-Path $projectRoot "tests\fakes\android\graphics\$_.java" }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses $printFakes $printSources "$projectRoot\tests\PrintExperienceRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Print experience test compilation failed' }

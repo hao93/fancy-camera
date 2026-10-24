@@ -34,7 +34,7 @@ final class Controls {
     static class ExposureButton extends View {
         final Paint p=new Paint(3);float value;
         ExposureButton(Context c){super(c);setClickable(true);setFocusable(true);set(0);}
-        void set(float ev){value=ExposureValue.clamp(ev);setContentDescription("曝光补偿 "+ExposureValue.label(value)+" EV，点击调整");invalidate();}
+        void set(float ev){value=ExposureValue.clamp(ev);setContentDescription("柔和曝光刻度 "+ExposureValue.label(value)+"，点击以0.1细调");invalidate();}
         @Override protected void onDraw(Canvas c){float sp=getResources().getDisplayMetrics().scaledDensity,cx=getWidth()/2f,cy=getHeight()/2f;p.setTextAlign(Paint.Align.CENTER);p.setTypeface(Typeface.create("monospace",Typeface.NORMAL));p.setTextSize(sp*22);String valueText=ExposureValue.label(value);float width=p.measureText(valueText);if(width>getWidth()-12*getResources().getDisplayMetrics().density)p.setTextSize(p.getTextSize()*(getWidth()-12*getResources().getDisplayMetrics().density)/width);p.setColor(value==0?CREAM:AMBER);c.drawText(valueText,cx,cy-sp*4,p);p.setTextSize(sp*12);p.setColor(MUTED);c.drawText("EV",cx,cy+sp*14,p);}
         @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.Button");}
     }
