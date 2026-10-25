@@ -45,10 +45,11 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private final ExecutorService previewWorker=Executors.newSingleThreadExecutor();private final java.util.concurrent.atomic.AtomicBoolean previewBusy=new java.util.concurrent.atomic.AtomicBoolean();
     public final GLSurfaceView view;private SurfaceTexture texture;private Surface surface;
     private CameraDevice device;private CameraCaptureSession session;private CaptureRequest.Builder request;private ImageReader reader,previewReader,rawReader;private RawCapture rawCapture;private final Set<String> rawRejected=new HashSet<>();private volatile String rawState="等待镜头就绪";private volatile int lastIso,previewMode;private volatile ExposureLimits exposureLimits=ExposureLimits.NONE;private volatile Size photoSize=new Size(4096,3072);public volatile boolean rawWanted;
-    private PreviewHold previewHold;private final java.util.concurrent.atomic.AtomicBoolean zoomQueued=new java.util.concurrent.atomic.AtomicBoolean();private volatile float targetMm=23;private final Runnable applyZoom=()->{zoomQueued.set(false);applyFocal(targetMm);};
+    private PreviewHold previewHold;private PreviewTransition previewTransition;private final java.util.concurrent.atomic.AtomicBoolean zoomQueued=new java.util.concurrent.atomic.AtomicBoolean();private volatile float targetMm=23;private final Runnable applyZoom=()->{zoomQueued.set(false);applyFocal(targetMm);};
     private volatile CameraUiState uiState=new CameraUiState(CameraUiState.CONNECTING,23,23,false,"");
     public CameraUiState uiState(){return uiState;}
     private void emitUi(int phase,String reason){uiState=new CameraUiState(active?phase:CameraUiState.PAUSED,requestedMm,front?0:LensPlan.base(requestedMm),previewReady,reason);listener.uiChanged(uiState);}
+    private final LensStartupCache startup;private boolean cachedProfile;private final LensSwitchTrace switchTrace=new LensSwitchTrace();private volatile long zoomRequestedAt;private volatile int renderedSession=-1;
     private final CameraHandoff handoff=new CameraHandoff();private final Map<String,Integer> profiles=new HashMap<>();
     private int profileIndex;private volatile boolean yuvPreview;private volatile YuvFrame yuvFrame;
     private static final class YuvFrame {final byte[] data;final int width,height,sourceWidth,sourceHeight;final float focal;final int[] roi;YuvFrame(byte[] d,int w,int h,int[] r,float mm){data=d;sourceWidth=w;sourceHeight=h;roi=r;width=r[2];height=r[3];focal=mm;}}
@@ -65,13 +66,13 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     public volatile Film.Settings film=new Film.Settings();public volatile String report="尚未检测镜头";
     private final StringBuilder events=new StringBuilder();private String enumeration="";private long lastReport;
     public CameraEngine(Activity a,Listener l){
-        activity=a;listener=l;manager=(CameraManager)a.getSystemService(Context.CAMERA_SERVICE);thread.start();handler=new Handler(thread.getLooper());
+        activity=a;listener=l;final SharedPreferences cache=a.getSharedPreferences("silverroom_camera_cache",0);startup=new LensStartupCache(new LensStartupCache.Store(){public String get(String key){try{return cache.getString(key,null);}catch(ClassCastException e){return null;}}public void put(String key,String value){cache.edit().putString(key,value).apply();}public void remove(String key){cache.edit().remove(key).apply();}public void clear(){cache.edit().clear().apply();}},Build.FINGERPRINT);manager=(CameraManager)a.getSystemService(Context.CAMERA_SERVICE);thread.start();handler=new Handler(thread.getLooper());
         orientationListener=new OrientationEventListener(a){public void onOrientationChanged(int degrees){int next=CaptureOrientation.update(degrees,deviceOrientation);if(next!=deviceOrientation){deviceOrientation=next;if(active)listener.orientationChanged(next);}}};
         view=new GLSurfaceView(a);view.setEGLContextClientVersion(2);view.setPreserveEGLContextOnPause(true);view.setRenderer(this);view.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
         vertices.put(new float[]{-1,-1,0,0,1,-1,1,0,-1,1,0,1,1,1,1,1}).position(0);
     }
     private boolean sameTreatment(Film.Settings a,Film.Settings b){Film.Settings copy=previewSettings(a);copy.stock=b.stock;return Arrays.equals(Film.parameters(copy),Film.parameters(b))&&copy.strength==b.strength&&copy.skin==b.skin&&copy.adaptiveGrain==b.adaptiveGrain;}private Film.Settings previewSettings(Film.Settings settings){Film.Settings copy=settings.copy();copy.iso=lastIso;copy.exposure+=previewFine();return copy;}
-    private void cameraError(String reason){emitUi(CameraUiState.ERROR,reason);listener.error(reason);}
+    private void cameraError(String reason){switchTrace.mark("失败",SystemClock.elapsedRealtime());switchTrace.cancel();emitUi(CameraUiState.ERROR,reason);listener.error(reason);}
     public ExposureLimits exposureLimits(){return exposureLimits;}public float exposureDisplay(){return exposurePlan.display;}public int iso(){return lastIso;}public int plannedEdge(float aspect){Size size=photoSize;return ImageQuality.outputEdge(size.getWidth(),size.getHeight(),LensPlan.crop(requestedMm),aspect);}
     public String rawStatus(){return rawState;}
     public void raw(boolean enabled){handler.post(()->{if(rawWanted==enabled)return;rawWanted=enabled;rawState=enabled?"正在检测当前镜头RAW能力":"RAW已关闭";if(!captureInFlight){close();open();}});}
@@ -80,10 +81,10 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     public String unavailableLabel(float mm){return detected.contains(LensPlan.base(mm))?"不可用":"未检测";}
     public boolean scanned(){return scanned;}public boolean front(){return front;}public float focal(){return requestedMm;}public int deviceOrientation(){return deviceOrientation;}
     public void resume(){active=true;if(orientationListener.canDetectOrientation())orientationListener.enable();view.onResume();handler.post(()->{emitUi(previewReady?CameraUiState.READY:CameraUiState.CONNECTING,"");scan();open();});}
-    public void pause(){active=false;emitUi(CameraUiState.PAUSED,"");handler.removeCallbacks(applyZoom);zoomQueued.set(false);targetMm=requestedMm;view.queueEvent(()->{if(previewHold!=null)previewHold.clear();});orientationListener.disable();handler.post(this::close);view.onPause();}
+    public void pause(){switchTrace.cancel();active=false;emitUi(CameraUiState.PAUSED,"");handler.removeCallbacks(applyZoom);zoomQueued.set(false);targetMm=requestedMm;view.queueEvent(()->{if(previewHold!=null)previewHold.clear();if(previewTransition!=null)previewTransition.clear();});orientationListener.disable();handler.post(this::close);view.onPause();}
     public void destroy(){orientationListener.disable();handler.post(()->{close();if(surface!=null)surface.release();if(texture!=null)texture.release();encoder.shutdown();previewWorker.shutdown();});thread.quitSafely();}
     public void permission(){handler.post(()->{emitUi(previewReady?CameraUiState.READY:CameraUiState.CONNECTING,"");scan();open();});}
-    public void rescan(){handler.post(()->{close();failed.clear();verified.clear();profiles.clear();rawRejected.clear();events.setLength(0);scan();open();});}
+    public void rescan(){handler.post(()->{startup.clear();close();failed.clear();verified.clear();profiles.clear();rawRejected.clear();events.setLength(0);scan();open();});}
     private boolean logical(CameraCharacteristics c){int[] cap=c.get(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES);if(cap!=null)for(int value:cap)if(value==CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA)return true;return false;}
     private float equivalent(CameraCharacteristics c){
         float[] focal=c.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);SizeF size=c.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
@@ -147,7 +148,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
             }catch(Exception e){out.append("  ID ").append(id).append(" 元数据不可读：").append(e.getMessage()).append('\n');}
         }
     }
-    private Route select(){return LensPlan.select(routes,requestedMm,front,failed);}
+    private Route select(){return startup.route(routes,requestedMm,front,failed);}
     private void publish(){
         Set<Integer> set=new HashSet<>(),all=new HashSet<>();for(Route r:routes)if(!r.front){all.add(r.base);if(!failed.contains(r.key()))set.add(r.base);}
         detected=Collections.unmodifiableSet(all);available=Collections.unmodifiableSet(set);StringBuilder out=new StringBuilder(enumeration);
@@ -156,16 +157,16 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
             out.append('\n').append(base).append("mm ").append(LensPlan.name(base)).append(label);
         }
         out.append("\n\n连续变焦：14–22.9mm 使用超广角；23–84.9mm 使用主摄；85–230mm 使用长焦。基础镜头缺失时禁用该范围，不以主摄裁切替代超广角或长焦。\n");
-        out.append("镜头通过元数据识别，焦段标签为 X100 Ultra 标称值；是否可用需实际会话配置。\n").append(events);report=out.toString();listener.lensesChanged();
+        out.append("镜头通过元数据识别，焦段标签为 X100 Ultra 标称值；是否可用需实际会话配置。\n").append(events);out.append("\n\n").append(switchTrace.report());report=out.toString();listener.lensesChanged();
     }
     private void event(String s){if(events.length()>10000)events.delete(0,5000);events.append(s).append('\n');publish();}
     public boolean focalPending(){return zoomQueued.get()||Math.abs(targetMm-requestedMm)>.049f||!previewReady;}
-    public void focal(float mm){LensPlan.base(mm);targetMm=Math.round(mm*10)/10f;if(zoomQueued.compareAndSet(false,true))handler.postDelayed(applyZoom,40);}
+    public void focal(float mm){LensPlan.base(mm);zoomRequestedAt=SystemClock.elapsedRealtime();targetMm=Math.round(mm*10)/10f;if(zoomQueued.compareAndSet(false,true))handler.postDelayed(applyZoom,16);}
     private void applyFocal(float mm){
         if(captureInFlight||front||!available.contains(LensPlan.base(mm))){if(targetMm==mm)targetMm=requestedMm;listener.lensesChanged();return;}
         if(Math.abs(requestedMm-mm)<.049f){if(device==null&&active)open();view.requestRender();return;}
-        Route next=LensPlan.select(routes,mm,false,failed);if(next==null){if(targetMm==mm)targetMm=requestedMm;return;}
-        boolean reopen=route==null||!next.key().equals(route.key());boolean locked=meter.active();if(reopen)previewReady=false;
+        Route next=startup.route(routes,mm,false,failed);if(next==null){if(targetMm==mm)targetMm=requestedMm;return;}
+        boolean reopen=route==null||!next.key().equals(route.key());boolean locked=meter.active();if(reopen){switchTrace.begin(requestedMm,mm,zoomRequestedAt,SystemClock.elapsedRealtime());previewReady=false;}
         clearMetering();requestedMm=mm;previewCrop=LensPlan.crop(mm);listener.lensesChanged();
         if(reopen){emitUi(CameraUiState.SWITCHING,"");listener.status("正在切换至 "+ZoomScale.label(mm)+"mm · 保留上一帧");close();if(active)open();}
         else{emitUi(previewReady?CameraUiState.READY:uiState.phase,uiState.reason);if(locked)update();if(device==null&&active)open();}view.requestRender();
@@ -180,8 +181,9 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         if(!handoff.begin())return;
         Route next=select();if(next==null){handoff.opened();previewReady=false;view.requestRender();cameraError(front?"没有可用前置相机":"所选光学镜头未开放，不能用主摄裁切替代。请选可用镜头或重新检测。");return;}
         emitUi(uiState.phase==CameraUiState.SWITCHING?CameraUiState.SWITCHING:CameraUiState.CONNECTING,"");
-        route=next;profileIndex=profiles.containsKey(profileKey())?profiles.get(profileKey()):0;splitPreview=route.physical!=null||(!route.front&&route.base!=23);yuvPreview=splitPreview&&PreviewQuality.yuv(profileIndex);stillOnly=false;previewCrop=front?1:LensPlan.crop(requestedMm);
+        route=next;int saved=startup.profile(startupKey(),PreviewQuality.count(route.physical!=null||(!route.front&&route.base!=23)));cachedProfile=!profiles.containsKey(profileKey())&&saved>=0;profileIndex=profiles.containsKey(profileKey())?profiles.get(profileKey()):saved>=0?saved:0;splitPreview=route.physical!=null||(!route.front&&route.base!=23);yuvPreview=splitPreview&&PreviewQuality.yuv(profileIndex);stillOnly=false;previewCrop=front?1:LensPlan.crop(requestedMm);
         try{
+            switchTrace.mark("准备输出",SystemClock.elapsedRealtime());
             ownerChars=manager.getCameraCharacteristics(route.owner);chars=route.physical==null?ownerChars:manager.getCameraCharacteristics(route.physical);Range<Integer> compensation=chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE);Rational unit=chars.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP);exposureLimits=compensation==null||unit==null?ExposureLimits.NONE:new ExposureLimits(compensation.getLower(),compensation.getUpper(),unit.floatValue());configureExposure(exposurePlan.display);
             Integer orientation=chars.get(CameraCharacteristics.SENSOR_ORIENTATION);sensorOrientation=orientation==null?90:orientation;
             StreamConfigurationMap map=chars.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);if(map==null)throw new IllegalStateException("镜头没有输出配置");
@@ -194,17 +196,18 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
             int format=!splitPreview&&jpegSizes!=null&&jpegSizes.length>0?ImageFormat.JPEG:ImageFormat.YUV_420_888;
             Size shot=choose(route.physical==null?map.getOutputSizes(format):shared(map,ownerMap,format),profileIndex==0?13000000:3200000);photoSize=shot;reader=ImageReader.newInstance(shot.getWidth(),shot.getHeight(),format,2);reader.setOnImageAvailableListener(this::imageAvailable,handler);
             prepareRaw(map,ownerMap);
-            final int token=++generation;event("准备打开 "+route.source()+"；方案 "+profileIndex+" · "+(yuvPreview?"单路 YUV":"单路 PRIVATE")+"取景 "+previewSize+" · 拍照 "+shot+" / "+format+" · "+rawState);
+            final int token=++generation;event("准备打开 "+route.source()+"；方案 "+profileIndex+(cachedProfile?"（已验证缓存）":"")+" · "+(yuvPreview?"单路 YUV":"单路 PRIVATE")+"取景 "+previewSize+" · 拍照 "+shot+" / "+format+" · "+rawState);
             listener.status("正在绑定 "+(front?"前置":route.base+"mm "+LensPlan.name(route.base))+" · 等待新镜头画面");
+            switchTrace.mark("请求打开设备",SystemClock.elapsedRealtime());
             manager.openCamera(route.owner,new CameraDevice.StateCallback(){
-                public void onOpened(CameraDevice d){handoff.opened();if(token!=generation||!active){retire(d);return;}device=d;createSession(false);}
+                public void onOpened(CameraDevice d){handoff.opened();if(token!=generation||!active){retire(d);return;}device=d;switchTrace.mark("设备已打开",SystemClock.elapsedRealtime());createSession(false);}
                 public void onClosed(CameraDevice d){cameraClosed(d);}
                 public void onDisconnected(CameraDevice d){handoff.opened();retire(d);if(token!=generation)return;close();view.requestRender();cameraError("相机连接已断开，请重新检测镜头");}
                 public void onError(CameraDevice d,int code){boolean wasOpen=d==device;handoff.opened();retire(d);if(token!=generation)return;if(code==ERROR_CAMERA_IN_USE||code==ERROR_MAX_CAMERAS_IN_USE){close();view.requestRender();event("相机占用错误 "+code);cameraError("相机正被其他应用占用，请关闭后重新检测");}else if(wasOpen)recover("设备回调错误 code="+code);else failRoute("独立/逻辑相机打开被拒绝 code="+code);}
             },handler);
         }catch(Exception e){handoff.opened();recover("打开/输出准备失败："+e.getClass().getSimpleName()+" / "+e.getMessage());}
     }
-    private void cameraClosed(CameraDevice d){handoff.closed(d);handler.post(this::tryOpen);}
+    private void cameraClosed(CameraDevice d){handoff.closed(d);switchTrace.mark("旧设备关闭回调",SystemClock.elapsedRealtime());handler.post(this::tryOpen);}
     private void retire(CameraDevice d){handoff.retiring(d);d.close();}
     private void prepareRaw(StreamConfigurationMap map,StreamConfigurationMap owner){
         rawState=rawWanted?"当前镜头未开放RAW":"RAW已关闭";if(!rawWanted)return;if(rawRejected.contains(route.key())){rawState="此镜头RAW组合已被系统拒绝，当前仅JPEG";return;}
@@ -220,12 +223,14 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private Surface previewSurface(){return yuvPreview?previewReader.getSurface():surface;}
     private CaptureRequest.Builder builder(int template)throws CameraAccessException{return route.physical==null?device.createCaptureRequest(template):device.createCaptureRequest(template,Collections.singleton(route.physical));}
     private String profileKey(){return route.key()+"/detail"+PreviewQuality.tier(ZoomScale.sessionFocal(requestedMm))+"/mode"+previewMode;}
+    private String startupKey(){return profileKey()+"/raw"+rawWanted+"/gl"+maxTextureEdge;}
     private Size choosePreview(Size[] sizes,StreamConfigurationMap map,StreamConfigurationMap owner,int format){
         if(sizes==null||sizes.length==0)throw new IllegalArgumentException("镜头未公开预览输出");int[][] values=new int[sizes.length][2];long[] times=new long[sizes.length];
         for(int i=0;i<sizes.length;i++){values[i][0]=sizes[i].getWidth();values[i][1]=sizes[i].getHeight();try{times[i]=map.getOutputMinFrameDuration(format,sizes[i]);if(route.physical!=null)times[i]=Math.max(times[i],owner.getOutputMinFrameDuration(format,sizes[i]));}catch(IllegalArgumentException ignored){}}
         return sizes[PreviewQuality.choose(values,times,ImageQuality.previewBudget(front?23:ZoomScale.sessionFocal(requestedMm),profileIndex,previewMode),Math.min(4096,maxTextureEdge))];
     }
     private void recover(String reason){
+        if(route!=null){startup.invalidate(route,startupKey());if(cachedProfile&&profileIndex>0&&!captureInFlight){cachedProfile=false;profiles.put(profileKey(),0);event("缓存方案失效，回到完整兼容检测："+reason);close();open();return;}}cachedProfile=false;
         if(rawReader!=null&&(!splitPreview||stillOnly)){rawRejected.add(route.key());rawState="RAW组合被拒绝，已回退JPEG："+reason;event(rawState);rawReader.close();rawReader=null;if(captureInFlight&&rawCapture!=null&&stillOnly){rawCapture.withoutRaw(rawState);createSession(true);}else{boolean interrupted=captureInFlight;close();open();if(interrupted)cameraError("RAW组合失败，已恢复JPEG，请重新拍摄");}return;}
         if(route!=null&&profileIndex+1<PreviewQuality.count(splitPreview)){boolean interrupted=captureInFlight;String key=profileKey();verified.remove(route.key());event(route.source()+" / 方案 "+profileIndex+"："+reason+"；关闭设备后尝试下一方案");profiles.put(key,profileIndex+1);close();view.requestRender();open();if(interrupted)cameraError("拍摄配置失败，正在重建镜头，请就绪后重试");}
         else failRoute(reason);
@@ -246,7 +251,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
             if(rawReader!=null&&(captureOnly||!splitPreview))outputs.add(output(rawReader.getSurface()));
             SessionConfiguration config=new SessionConfiguration(SessionConfiguration.SESSION_REGULAR,outputs,r->handler.post(r),new CameraCaptureSession.StateCallback(){
                 public void onConfigured(CameraCaptureSession s){
-                    if(token!=generation||sessionToken!=sessionGeneration||device==null||!active){s.close();return;}session=s;
+                    if(token!=generation||sessionToken!=sessionGeneration||device==null||!active){s.close();return;}session=s;switchTrace.mark("输出会话已配置",SystemClock.elapsedRealtime());
                     try{if(captureOnly)captureRequest();else{request=builder(CameraDevice.TEMPLATE_PREVIEW);request.addTarget(previewSurface());update();handler.postDelayed(()->{if(token==generation&&sessionToken==sessionGeneration&&!previewReady&&!captureInFlight)recover("预览输出超时");},8000);}}
                     catch(Exception e){recover("会话启动失败："+e.getMessage());}
                 }
@@ -262,7 +267,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         }
     }
     private void failRoute(String reason){
-        if(route==null){cameraError(reason);return;}String failedKey=route.key();String description=route.source();failed.add(failedKey);verified.remove(failedKey);close();event(description+"："+reason);view.requestRender();
+        if(route==null){cameraError(reason);return;}startup.invalidate(route,startupKey());String failedKey=route.key();String description=route.source();failed.add(failedKey);verified.remove(failedKey);close();event(description+"："+reason);view.requestRender();
         if(select()!=null){listener.status("尝试同一光学镜头的另一条公开路径");open();}else cameraError("该光学镜头无法使用："+reason+"；未切换为主摄裁切。");
     }
     private <T> void physical(CaptureRequest.Builder builder,CaptureRequest.Key<T> key,T value){
@@ -292,14 +297,14 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         @Override public void onCaptureCompleted(CameraCaptureSession s,CaptureRequest req,TotalCaptureResult result){
             if(s!=session||route==null||stillOnly)return;
             if(route.logicalDefault&&!defaultMainVerified(result)){failRoute("系统默认 1× 无法确认主摄原生输出，拒绝作为光学主摄使用");return;}
-            previewResultSeen=true;CaptureResult actual=physicalResult(result);recordExposure(req,actual);if(actual!=null){Integer iso=actual.get(CaptureResult.SENSOR_SENSITIVITY);lastIso=iso==null?0:iso;}markPreviewReady();lockResult(req,result);
+            switchTrace.mark("首个取景结果",SystemClock.elapsedRealtime());previewResultSeen=true;CaptureResult actual=physicalResult(result);recordExposure(req,actual);if(actual!=null){Integer iso=actual.get(CaptureResult.SENSOR_SENSITIVITY);lastIso=iso==null?0:iso;}markPreviewReady();lockResult(req,result);
             if(SystemClock.elapsedRealtime()-lastReport>2500){lastReport=SystemClock.elapsedRealtime();String verified="";
                 if(route.physical!=null&&result.getPhysicalCameraResults().containsKey(route.physical))verified=" · 物理结果已返回";
                 listener.status(description()+verified);
             }
         }
     };
-    private void markPreviewReady(){if(!previewReady&&previewResultSeen&&(yuvPreview?yuvFrame!=null:externalFrameReady)){previewReady=true;verified.add(route.key());emitUi(CameraUiState.READY,"");event("取景已验证："+route.source()+" / 方案 "+profileIndex+" / "+(int)requestedMm+"mm / 源 "+previewSize+" / 焦段裁切后约 "+Math.round(previewSize.getWidth()/previewCrop)+"×"+Math.round(previewSize.getHeight()/previewCrop));view.requestRender();}}
+    private void markPreviewReady(){if(!previewReady&&previewResultSeen&&(yuvPreview?yuvFrame!=null:externalFrameReady)){previewReady=true;switchTrace.mark("真实取景已就绪",SystemClock.elapsedRealtime());startup.verified(route,startupKey(),profileIndex);cachedProfile=false;verified.add(route.key());emitUi(CameraUiState.READY,"");event("取景已验证："+route.source()+" / 方案 "+profileIndex+" / "+(int)requestedMm+"mm / 源 "+previewSize+" / 焦段裁切后约 "+Math.round(previewSize.getWidth()/previewCrop)+"×"+Math.round(previewSize.getHeight()/previewCrop));view.requestRender();}}
     private boolean defaultMainVerified(TotalCaptureResult result){
         Float focal=result.get(CaptureResult.LENS_FOCAL_LENGTH);float[] expected=chars.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
         if(focal==null||expected==null||expected.length==0||Math.abs(focal-expected[0])>expected[0]*.05f)return false;
@@ -403,7 +408,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
                 try(Image held=image){
                     Rect crop=held.getCropRect();int w=crop.width()&~1,h=crop.height()&~1;int[] roi=PreviewQuality.region(w,h,Math.max(1,LensPlan.crop(mm)*.75f));Image.Plane[] p=held.getPlanes();
                     byte[] data=YuvFrames.nv21(roi[2],roi[3],(crop.left&~1)+roi[0],(crop.top&~1)+roi[1],p[0].getBuffer(),p[0].getRowStride(),p[0].getPixelStride(),p[1].getBuffer(),p[1].getRowStride(),p[1].getPixelStride(),p[2].getBuffer(),p[2].getRowStride(),p[2].getPixelStride());
-                    YuvFrame converted=new YuvFrame(data,w,h,roi,mm);handler.post(()->{if(token!=generation||ir!=previewReader||!active)return;yuvFrame=converted;markPreviewReady();view.requestRender();});
+                    YuvFrame converted=new YuvFrame(data,w,h,roi,mm);handler.post(()->{if(token!=generation||ir!=previewReader||!active)return;yuvFrame=converted;switchTrace.mark("首个YUV图像",SystemClock.elapsedRealtime());markPreviewReady();view.requestRender();});
                 }catch(RuntimeException|OutOfMemoryError e){handler.post(()->{if(token==generation&&ir==previewReader&&active)recover("YUV 取景读取失败："+e.getMessage());});}
                 finally{previewBusy.set(false);}
             });}catch(RejectedExecutionException e){image.close();previewBusy.set(false);}
@@ -469,7 +474,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private static int shader(int type,String src){int id=GLES20.glCreateShader(type);GLES20.glShaderSource(id,src);GLES20.glCompileShader(id);int[] ok=new int[1];GLES20.glGetShaderiv(id,GLES20.GL_COMPILE_STATUS,ok,0);if(ok[0]==0)throw new IllegalStateException(GLES20.glGetShaderInfoLog(id));return id;}
     private static int program(String fragment){int p=GLES20.glCreateProgram();GLES20.glAttachShader(p,shader(GLES20.GL_VERTEX_SHADER,CameraShaders.VERTEX));GLES20.glAttachShader(p,shader(GLES20.GL_FRAGMENT_SHADER,fragment));GLES20.glLinkProgram(p);int[] ok=new int[1];GLES20.glGetProgramiv(p,GLES20.GL_LINK_STATUS,ok,0);if(ok[0]==0)throw new IllegalStateException(GLES20.glGetProgramInfoLog(p));return p;}
     @Override public void onSurfaceCreated(GL10 gl,EGLConfig config){
-        previewHold=new PreviewHold();grainTexture=new GrainTexture();popupReadback=null;histogramReadback=null;lastHistogram=0;uploadedFrame=null;int[] limit=new int[1];GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE,limit,0);maxTextureEdge=Math.max(2048,limit[0]);
+        previewHold=new PreviewHold();previewTransition=new PreviewTransition();grainTexture=new GrainTexture();popupReadback=null;histogramReadback=null;lastHistogram=0;uploadedFrame=null;int[] limit=new int[1];GLES20.glGetIntegerv(GLES20.GL_MAX_TEXTURE_SIZE,limit,0);maxTextureEdge=Math.max(2048,limit[0]);
         program=program(CameraShaders.EXTERNAL);yuvProgram=program(CameraShaders.YUV);
         GLES20.glGenTextures(2,yuvTextures,0);for(int id:yuvTextures){GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,id);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);}
         int[] t=new int[1];GLES20.glGenTextures(1,t,0);texId=t[0];GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,texId);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_WRAP_S,GLES20.GL_CLAMP_TO_EDGE);GLES20.glTexParameteri(GLES11Ext.GL_TEXTURE_EXTERNAL_OES,GLES20.GL_TEXTURE_WRAP_T,GLES20.GL_CLAMP_TO_EDGE);
@@ -483,16 +488,17 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         // the producer before its result callback, leaving both sides waiting forever.
         frame=false;final int epoch=sessionGeneration;
         try{source.updateTexImage();source.getTransformMatrix(st);
-            handler.post(()->{if(epoch!=sessionGeneration||source!=texture||!active||stillOnly||yuvPreview||device==null||session==null)return;externalFrameReady=true;markPreviewReady();});
+            handler.post(()->{if(epoch!=sessionGeneration||source!=texture||!active||stillOnly||yuvPreview||device==null||session==null)return;externalFrameReady=true;switchTrace.mark("首个PRIVATE图像",SystemClock.elapsedRealtime());markPreviewReady();});
         }catch(RuntimeException error){handler.post(()->{if(epoch==sessionGeneration&&active&&source==texture)recover("PRIVATE取景读取失败："+error.getMessage());});}
     }
     @Override public void onDrawFrame(GL10 gl){
         latchExternalFrame();
+        if((!active||uiState.phase==CameraUiState.ERROR)&&previewTransition!=null)previewTransition.clear();
         // Still-output reconfiguration may submit empty buffers. Keep the last complete frame until the JPEG arrives.
-        if(active&&captureInFlight&&previewHold!=null&&previewHold.draw(width,height))return;
+        if(active&&captureInFlight&&previewHold!=null&&previewHold.draw(width,height)){if(previewTransition!=null)previewTransition.clear();return;}
         boolean raw=yuvPreview;YuvFrame pixels=yuvFrame;
         if(!active||texture==null||!previewReady||(raw&&(pixels==null||!PreviewQuality.covers(pixels.sourceWidth,pixels.sourceHeight,pixels.roi,previewCrop)))){
-            if(active&&previewHold!=null&&previewHold.draw(width,height))return;
+            if(active&&previewHold!=null&&previewHold.draw(width,height)){if(uiState.phase==CameraUiState.SWITCHING&&previewTransition!=null)previewTransition.hold(width,height);return;}
             GLES20.glClearColor(.04f,.045f,.04f,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);return;
         }
         GLES20.glClearColor(.04f,.045f,.04f,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
@@ -515,6 +521,8 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         GLES20.glUniform4f(GLES20.glGetUniformLocation(current,"uFx"),p[20],p[21],p[22],p[23]);GLES20.glUniform2f(GLES20.glGetUniformLocation(current,"uMix"),FilmStrength.clamp(shown.strength),FilmStrength.exposure(shown.exposure));
         GLES20.glUniform2f(GLES20.glGetUniformLocation(current,"uQuality"),ImageQuality.clamp(shown.skin,0,1),shown.adaptiveGrain?1:0);vertices.position(0);int ap=GLES20.glGetAttribLocation(current,"aP");GLES20.glEnableVertexAttribArray(ap);GLES20.glVertexAttribPointer(ap,2,GLES20.GL_FLOAT,false,16,vertices);vertices.position(2);int at=GLES20.glGetAttribLocation(current,"aT");GLES20.glEnableVertexAttribArray(at);GLES20.glVertexAttribPointer(at,2,GLES20.GL_FLOAT,false,16,vertices);GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);
         if(previewHold!=null)previewHold.save(width,height);
+        if(previewTransition!=null&&previewTransition.blend(width,height,SystemClock.uptimeMillis(),android.animation.ValueAnimator.areAnimatorsEnabled()))view.requestRender();
+        final int shownSession=sessionGeneration;if(renderedSession!=shownSession){renderedSession=shownSession;handler.post(()->{if(shownSession==sessionGeneration&&previewReady&&switchTrace.running()){switchTrace.end(SystemClock.elapsedRealtime());event(switchTrace.report());}});}
         long now=SystemClock.elapsedRealtime();HistogramSink chart=histogramChannel.get();boolean chartDone=false;PreviewSink sink=previewChannel.get();long token=sink==null?0:sink.acquire(now);
         if(token!=0){
             try{if(popupReadback==null)popupReadback=new PreviewReadback(grainTexture);int[] styles=PreviewAtlas.styles(sink.styles(),shown.stock);PreviewAtlas batch=popupReadback.atlas(raw,current,texId,yuvTextures,model,st,previewCrop,width,height,styles,previewSettings(sink.settings()),sink.edge(),now);if(chart!=null&&now-lastHistogram>=125&&sameTreatment(sink.settings(),shown)){chart.histogram(Histogram.atlas(batch,batch.index(shown.stock)));lastHistogram=now;chartDone=true;}sink.frame(token,batch);}

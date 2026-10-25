@@ -6,7 +6,7 @@ import java.nio.*;
 /** GPU-only last rendered frame. A camera close never discards it; EGL recreation does. */
 final class PreviewHold {
     static final String VERTEX="attribute vec2 aP;varying vec2 vT;void main(){gl_Position=vec4(aP,0.,1.);vT=aP*.5+.5;}";
-    static final String FRAGMENT="precision mediump float;uniform sampler2D uFrame;varying vec2 vT;void main(){gl_FragColor=texture2D(uFrame,vT);}";
+    static final String FRAGMENT="precision mediump float;uniform sampler2D uFrame;uniform float uOpacity;varying vec2 vT;void main(){vec4 c=texture2D(uFrame,vT);gl_FragColor=vec4(c.rgb,c.a*uOpacity);}";
     private int texture,program,width,height;private boolean valid;
     private final FloatBuffer quad=ByteBuffer.allocateDirect(32).order(ByteOrder.nativeOrder()).asFloatBuffer();
     PreviewHold(){quad.put(new float[]{-1,-1,1,-1,-1,1,1,1}).position(0);}
@@ -20,9 +20,10 @@ final class PreviewHold {
             GLES20.glCopyTexSubImage2D(GLES20.GL_TEXTURE_2D,0,0,0,0,0,w,h);if(GLES20.glGetError()==GLES20.GL_NO_ERROR)valid=true;else if(!valid){width=height=0;}
         }finally{GLES20.glActiveTexture(GLES20.GL_TEXTURE0);}
     }
-    boolean draw(int w,int h){
+    boolean draw(int w,int h){return draw(w,h,1);}
+    boolean draw(int w,int h,float opacity){
         if(!valid||width!=w||height!=h)return false;
-        try{prepare();GLES20.glViewport(0,0,w,h);GLES20.glUseProgram(program);GLES20.glActiveTexture(GLES20.GL_TEXTURE2);GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,texture);GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uFrame"),2);quad.position(0);int a=GLES20.glGetAttribLocation(program,"aP");GLES20.glEnableVertexAttribArray(a);GLES20.glVertexAttribPointer(a,2,GLES20.GL_FLOAT,false,0,quad);GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);return true;}
-        catch(RuntimeException failure){valid=false;return false;}finally{GLES20.glActiveTexture(GLES20.GL_TEXTURE0);}
+        try{prepare();GLES20.glViewport(0,0,w,h);GLES20.glUseProgram(program);GLES20.glActiveTexture(GLES20.GL_TEXTURE2);GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,texture);GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uFrame"),2);GLES20.glUniform1f(GLES20.glGetUniformLocation(program,"uOpacity"),Math.max(0,Math.min(1,opacity)));if(opacity<1){GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA);}quad.position(0);int a=GLES20.glGetAttribLocation(program,"aP");GLES20.glEnableVertexAttribArray(a);GLES20.glVertexAttribPointer(a,2,GLES20.GL_FLOAT,false,0,quad);GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);return true;}
+        catch(RuntimeException failure){valid=false;return false;}finally{GLES20.glDisable(GLES20.GL_BLEND);GLES20.glActiveTexture(GLES20.GL_TEXTURE0);}
     }
 }
