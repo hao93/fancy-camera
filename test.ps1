@@ -7,6 +7,8 @@ if (-not $jdkRoot) {
 }
 $testClasses = Join-Path $projectRoot 'build\test-classes'
 New-Item -ItemType Directory -Force $testClasses | Out-Null
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\LogicalZoomState.java" "$projectRoot\src\com\silverroom\camera\MeteringState.java" "$projectRoot\src\com\silverroom\camera\MeteringGeometry.java" "$projectRoot\src\com\silverroom\camera\PreviewFraming.java" "$projectRoot\src\com\silverroom\camera\ToolbarConfig.java"
+if ($LASTEXITCODE -ne 0) { throw 'Metering helper compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\UiSpec.java" "$projectRoot\src\com\silverroom\camera\CameraUiState.java" "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\ZoomScale.java" "$projectRoot\src\com\silverroom\camera\YuvFrames.java" "$projectRoot\src\com\silverroom\camera\CameraHandoff.java" "$projectRoot\src\com\silverroom\camera\YuvGeometry.java" "$projectRoot\src\com\silverroom\camera\CameraShaders.java" "$projectRoot\src\com\silverroom\camera\CaptureOrientation.java" "$projectRoot\src\com\silverroom\camera\FilmGrain.java" "$projectRoot\src\com\silverroom\camera\FilmCatalog.java" "$projectRoot\src\com\silverroom\camera\FilmGroups.java" "$projectRoot\src\com\silverroom\camera\FilterShelf.java" "$projectRoot\tests\OpticalPolicyTest.java" "$projectRoot\tests\PipelineRegression.java" "$projectRoot\tests\PhotoFeaturesRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\PreviewQuality.java" "$projectRoot\src\com\silverroom\camera\ImageQuality.java" "$projectRoot\src\com\silverroom\camera\FrameFormat.java"
@@ -132,6 +134,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Camera presentation, darkroom or confirmed pho
 if ($LASTEXITCODE -ne 0) { throw 'Exposure pipeline test compilation failed' }
 & "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $testClasses ExposurePipelineRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Exposure transfer, no-double-compensation or saved-pixel regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\MeteringCameraRegression.java" "$projectRoot\tests\MeteringPolicyRegression.java" "$projectRoot\tests\ToolbarRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Metering/toolbar test compilation failed' }
+& "$jdkRoot\bin\java.exe" '-Duser.language=en' -cp $testClasses MeteringCameraRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Native region request regression failed' }
+& "$jdkRoot\bin\java.exe" '-Duser.language=en' -cp $testClasses MeteringPolicyRegression
+if ($LASTEXITCODE -ne 0) { throw 'Metering geometry/state regression failed' }
+& "$jdkRoot\bin\java.exe" '-Duser.language=en' -cp $testClasses ToolbarRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Toolbar visibility regression failed' }
+
 
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\CaptureWorkflowRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Capture workflow test compilation failed' }

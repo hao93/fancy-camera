@@ -36,11 +36,11 @@ public final class ControlRotationProbe {
         check(fits,"All seven focal lengths fit the compact numeric region at portrait, landscape and animation angles with enlarged fonts");
         FilmWheel film=new FilmWheel(new Context());Canvas filmCanvas=new Canvas();film.onDraw(filmCanvas);
         check(filmCanvas.textAngles.stream().allMatch(v->near(v,0)),"Film names, percentages and Chinese descriptions retain their unrotated film renderer");
-        boolean toolIcons=true,insideLabels=true,borderless=true;for(int theme=0;theme<2;theme++){AppTheme.select(theme);for(int kind=0;kind<6;kind++)for(float angle:new float[]{-90,90,180}){
+        boolean toolIcons=true,insideLabels=true,borderless=true;for(int theme=0;theme<2;theme++){AppTheme.select(theme);for(int kind=0;kind<7;kind++)for(float angle:new float[]{-90,90,180}){
             Controls.ToolButton tool=new Controls.ToolButton(new Context(),kind);tool.size(49,48);tool.state(true,kind==3?"4:3":kind==2?"10s":kind==0?"A":"", "工具");tool.iconAngle(angle);Canvas draw=new Canvas();tool.onDraw(draw);
             for(float shape:draw.shapeAngles)toolIcons&=sameAngle(shape,angle);for(float path:draw.pathAngles)toolIcons&=sameAngle(path,angle);for(float text:draw.textAngles)insideLabels&=sameAngle(text,angle);for(float[] rect:draw.roundRects)borderless&=!(near(rect[0],0)&&near(rect[1],0)&&near(rect[2],49)&&near(rect[3],48));
         }}
-        check(toolIcons&&borderless,"Six shipping toolbar glyphs rotate without outside cards or frames in either theme");
+        check(toolIcons&&borderless,"All shipping toolbar glyphs including metering rotate without outside cards or frames in either theme");
         check(insideLabels,"Auto flash and timer status stay inside the rotating glyph with no side badge");
         boolean frameSimple=true;for(float font:new float[]{1,1.3f,2})for(String ratio:new String[]{"铺满","4:3","3:2","1:1","16:9"})for(float angle:new float[]{0,45,90,180,270}){Context context=new Context();context.resources.metrics.scaledDensity=font;Controls.ToolButton tool=new Controls.ToolButton(context,Controls.ToolButton.FRAME);tool.size(49,48);tool.state(false,ratio,"画幅");tool.iconAngle(angle);Canvas draw=new Canvas();tool.onDraw(draw);frameSimple&=draw.texts.isEmpty()&&draw.roundRects.size()==1&&draw.lines.isEmpty()&&draw.pathAngles.isEmpty();for(float[] box:draw.roundRects)frameSimple&=box[0]>=2&&box[1]>=2&&box[2]<=22&&box[3]<=22;}
         check(frameSimple,"Frame formats use one compact text-free outline without numbers, expansion arrows or decorative strokes across font sizes and rotations");

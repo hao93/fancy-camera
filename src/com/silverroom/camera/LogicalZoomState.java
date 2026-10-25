@@ -6,8 +6,9 @@ import java.util.*;
 final class LogicalZoomState {
     static final int STALE=0, VALID=1, INVALID=2;
     static final class Tag {
-        final long zoom,meter; final float focal;
-        Tag(long z,long m,float f){zoom=z;meter=m;focal=f;}
+        final long zoom,meter,regions; final float focal;
+        Tag(long z,long m,float f){this(z,m,f,0);}
+        Tag(long z,long m,float f,long region){zoom=z;meter=m;focal=f;regions=region;}
     }
     static final class Proof {
         final long timestamp,epoch; final float focal; final String physical;final Float appliedEv;final int iso;
@@ -20,7 +21,9 @@ final class LogicalZoomState {
     synchronized void reset(Map<String,Integer> physical){epoch++;bases.clear();bases.putAll(physical);results.clear();rejected.clear();imageTimestamp=0;reason="";}
     synchronized long begin(float mm){LensPlan.base(mm);epoch++;focal=mm;results.clear();rejected.clear();imageTimestamp=0;reason="";return epoch;}
     synchronized long epoch(){return epoch;}
-    synchronized Tag tag(long meter){return new Tag(epoch,meter,focal);}
+    synchronized Tag tag(long meter){return tag(meter,0);}
+    synchronized Tag tag(long meter,long regions){return new Tag(epoch,meter,focal,regions);}
+    static long regions(Object tag){return tag instanceof Tag?((Tag)tag).regions:0;}
     static long meter(Object tag){return tag instanceof Tag?((Tag)tag).meter:tag instanceof Long?(Long)tag:Long.MIN_VALUE;}
     static float ratio(float mm){LensPlan.base(mm);return mm/23f;}
     synchronized String validate(Object value,Long timestamp,String physical,Float ratio){
