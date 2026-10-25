@@ -9,9 +9,10 @@ public class Canvas {
     public final List<String> texts=new ArrayList<>();public final List<Integer> textAlphas=new ArrayList<>();
     public final List<Float> widths=new ArrayList<>(),textAngles=new ArrayList<>(),pathAngles=new ArrayList<>(),shapeAngles=new ArrayList<>();
     public final List<float[]> textBounds=new ArrayList<>(),roundRects=new ArrayList<>(),lines=new ArrayList<>(),circles=new ArrayList<>();
+    public final List<Paint.Style> roundRectStyles=new ArrayList<>();public final List<Integer> roundRectColors=new ArrayList<>();public final List<Float> roundRectStrokes=new ArrayList<>();
     private AffineTransform matrix=new AffineTransform();private final Deque<AffineTransform> stack=new ArrayDeque<>();
     private float angle(){return (float)Math.toDegrees(Math.atan2(matrix.getShearY(),matrix.getScaleX()));}
-    public void drawRoundRect(float a,float b,float c,float d,float e,float f,Paint p){shapeAngles.add(angle());roundRects.add(new float[]{a,b,c,d});}
+    public void drawRoundRect(float a,float b,float c,float d,float e,float f,Paint p){shapeAngles.add(angle());roundRects.add(new float[]{a,b,c,d});roundRectStyles.add(p.style);roundRectColors.add(p.color);roundRectStrokes.add(p.stroke);}
     public void drawArc(float a,float b,float c,float d,float start,float sweep,boolean center,Paint p){shapeAngles.add(angle()+start);}
     public void drawCircle(float x,float y,float r,Paint p){shapeAngles.add(angle());circles.add(new float[]{x,y,r});}
     public void drawLine(float a,float b,float c,float d,Paint p){shapeAngles.add(angle());lines.add(new float[]{a,b,c,d});}
@@ -20,6 +21,7 @@ public class Canvas {
     public void translate(float x,float y){matrix.translate(x,y);}
     public void scale(float x,float y){matrix.scale(x,y);}
     public void rotate(float degrees,float x,float y){matrix.rotate(Math.toRadians(degrees),x,y);}
+    public void clipPath(Path path){}
     public void clipRect(float a,float b,float c,float d){}
     public void drawRect(float a,float b,float c,float d,Paint p){shapeAngles.add(angle());}
     public void drawPath(Path p,Paint paint){pathAngles.add(angle());}

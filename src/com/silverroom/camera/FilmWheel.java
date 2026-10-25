@@ -9,7 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 import java.util.List;
 import static com.silverroom.camera.Controls.*;
 
-/** Horizontal film reel with live detents, inertial settling and a fixed selection gate. */
+/** Horizontal film reel with live detents, inertial settling and a integrated selection outline. */
 class FilmWheel extends View {
     interface Listener {void selected(int id);}
     final FilmWheelState state=new FilmWheelState();private final Paint paint=new Paint(3);
@@ -44,14 +44,14 @@ class FilmWheel extends View {
     @Override protected void onDraw(Canvas c){
         float cx=getWidth()/2f,cy=getHeight()/2f,slot=pitch(),font=Math.max(1,getResources().getDisplayMetrics().scaledDensity/getResources().getDisplayMetrics().density);
         float half=getHeight()/2f-dp(7);paint.setStyle(Paint.Style.FILL);paint.setColor(tone(AppTheme.ACTIVE));if(compact())c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);
-        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);paint.setStyle(Paint.Style.FILL);
+        if(compact()){paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(dp(.8f));paint.setColor(tone(AppTheme.SELECT_BORDER));c.drawRoundRect(cx-slot*.49f,cy-half,cx+slot*.49f,cy+half,dp(13),dp(13),paint);}paint.setStyle(Paint.Style.FILL);
         for(int i=0;i<state.count();i++){
             float distance=i-(Float.isFinite(visual)?visual:state.position()),x=cx+distance*slot;if(x< -slot||x>getWidth()+slot)continue;
             float depth=Math.min(1.8f,Math.abs(distance)),scale=1-depth*.19f;int id=state.id(i);int alpha=Math.round((1-Math.min(.82f,depth*.43f))*(isEnabled()&&available(id)?255:75));boolean selected=i==state.index()&&available(id);
             c.save();c.translate(x,cy+dp(depth*2));c.scale(scale,scale);c.clipRect(-slot*.48f,-getHeight()/2f+dp(4),slot*.48f,getHeight()/2f-dp(4));
-            if(!compact()){FilmLabelStyle label=FilmLabelStyle.of(id);paint.setColor(label.paper);paint.setAlpha(alpha);c.drawRoundRect(-slot*.44f,-half,slot*.44f,half,dp(9),dp(9),paint);paint.setColor(label.band);c.drawRoundRect(-slot*.44f,dp(7)*font,slot*.44f,half,dp(5),dp(5),paint);paint.setColor(label.accent);paint.setAlpha(alpha);c.drawRoundRect(-dp(11),-dp(19)*font,dp(11),-dp(16)*font,dp(1.5f),dp(1.5f),paint);}
+            if(!compact()){c.save();Path mask=new Path();mask.addRoundRect(-slot*.44f,-half,slot*.44f,half,dp(9),dp(9),Path.Direction.CW);c.clipPath(mask);FilmLabelStyle label=FilmLabelStyle.of(id);paint.setColor(label.paper);paint.setAlpha(alpha);c.drawRoundRect(-slot*.44f,-half,slot*.44f,half,dp(9),dp(9),paint);paint.setColor(label.band);c.drawRect(-slot*.44f,dp(7)*font,slot*.44f,half,paint);paint.setColor(label.accent);c.drawRoundRect(-dp(11),-dp(19)*font,dp(11),-dp(16)*font,dp(1.5f),dp(1.5f),paint);}
             paint.setTypeface(Typeface.create("sans-serif-medium",0));paint.setTextAlign(Paint.Align.CENTER);paint.setTextSize(sp(compact()?18:14));paint.setColor(compact()?(selected?AMBER:CREAM):FilmLabelStyle.of(id).ink);paint.setAlpha(alpha);drawTitle(c,title(id),dp(compact()?-1:1)*font,paint,slot);
-            paint.setTypeface(Typeface.create("sans-serif",0));paint.setFontFeatureSettings("tnum");paint.setTextSize(sp(12));paint.setColor(compact()?MUTED:FilmLabelStyle.of(id).bandInk);paint.setAlpha(alpha);c.drawText(fit(selected&&!compact()?FilmStrength.percent(strength)+"%":subtitle(id),slot-dp(12)),0,dp(compact()?14:18)*font,paint);c.restore();
+            paint.setTypeface(Typeface.create("sans-serif",0));paint.setFontFeatureSettings("tnum");paint.setTextSize(sp(12));paint.setColor(compact()?MUTED:FilmLabelStyle.of(id).bandInk);paint.setAlpha(alpha);c.drawText(fit(selected&&!compact()?FilmStrength.percent(strength)+"%":subtitle(id),slot-dp(12)),0,dp(compact()?14:18)*font,paint);if(!compact()){c.restore();if(selected){float stroke=dp(1.4f),inset=stroke/2;paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(AMBER);paint.setAlpha(alpha);c.drawRoundRect(-slot*.44f+inset,-half+inset,slot*.44f-inset,half-inset,dp(9)-inset,dp(9)-inset,paint);paint.setStyle(Paint.Style.FILL);}}c.restore();
         }
         drawEdges(c);
         if(!compact()){paint.setColor(AMBER);Path marker=new Path();marker.moveTo(cx,getHeight()-dp(4));marker.lineTo(cx-dp(2.5f),getHeight());marker.lineTo(cx+dp(2.5f),getHeight());marker.close();c.drawPath(marker,paint);}

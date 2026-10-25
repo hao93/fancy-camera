@@ -182,6 +182,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Primary shelf/film label test compilation fail
 if ($LASTEXITCODE -ne 0) { throw 'Primary film shelf hierarchy regression failed' }
 & "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $workflowClasspath FilmLabelRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Production film label raster regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\tests\SquarePreviewRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Square preview test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath SquarePreviewRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Square preview measurement/scaling regression failed' }
 $archiveClasses=Join-Path $projectRoot 'build\archive-test-classes'
 New-Item -ItemType Directory -Force $archiveClasses | Out-Null
 $archiveFakes=Get-ChildItem (Join-Path $projectRoot 'tests\archive-fakes') -Filter '*.java' | ForEach-Object { $_.FullName }
