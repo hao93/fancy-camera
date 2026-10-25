@@ -17,9 +17,9 @@ public final class NewStylesRegression {
     public static void main(String[] args)throws Exception{
         String[] added={"Kodak Gold 200","Kodak Ektar 100","Kodak Kodachrome","CineStill 800T","Ilford HP5","Polaroid 宝丽来","王家卫风格","韦斯·安德森风格","诺兰电影风","港风电影","韩国电影风","莫兰迪色系","德系冷调","北欧极简","暗调 Moody","高调 High Key","低调 Low Key","70 年代美式","80 年代港风","90 年代日系","Y2K 千禧风","CCD 数码复古","直闪 Flash","杂志 Editorial","街头纪实","胶片漏光","移轴微缩"};
         check(Arrays.equals(Arrays.copyOfRange(FilmCatalog.NAMES,24,51),added),"All twenty-seven requested names have stable appended IDs");
-        int start=24;int[] lengths={6,5,6,5,5};for(int i=0;i<lengths.length;i++){java.util.List<Integer> ids=FilmGroups.ids(i+5);check(ids.size()==lengths[i]&&ids.get(0)==start&&ids.get(ids.size()-1)==start+lengths[i]-1,"New family "+FilmGroups.LABELS[i+5]+" contains exactly its requested styles");start+=lengths[i];}
-        check(FilmGroups.libraryLabels().length==12&&FilmGroups.libraryLabels()[7].equals("经典胶片")&&FilmGroups.libraryLabels()[11].equals("特色摄影"),"Library tabs expose all new categories after the existing tabs");
-        boolean tabs=true;for(int g=1;g<FilmGroups.LABELS.length;g++)tabs&=FilmGroups.libraryGroup(g+2)==g&&FilmGroups.SHORT_LABELS[g].length()<=2;check(tabs,"Library category mapping and compact reel labels stay consistent");
+        int start=24;int[] lengths={6,5,6,5,5};for(int i=0;i<lengths.length;i++){java.util.List<Integer> ids=FilmGroups.ids(i+5);check(ids.contains(start)&&ids.contains(start+lengths[i]-1),"Historical family "+FilmGroups.LABELS[i+5]+" retains its requested styles");start+=lengths[i];}
+        check(FilmGroups.libraryLabels().length==13&&FilmGroups.libraryLabels()[8].equals("经典胶片")&&FilmGroups.libraryLabels()[12].equals("特色摄影"),"Library tabs expose all new categories after the existing tabs");
+        boolean tabs=true;for(int tab=3;tab<FilmGroups.libraryLabels().length;tab++){int g=FilmGroups.libraryGroup(tab);tabs&=g!=FilmGroups.FAVORITES&&FilmGroups.libraryLabels()[tab].startsWith(FilmGroups.LABELS[g])&&FilmGroups.SHORT_LABELS[g].length()<=2;}check(tabs,"Library category mapping and compact reel labels stay consistent");
         check(FilmGroups.choose(9,24,49)==49&&FilmGroups.choose(5,50,24)==24,"Main category switch restores each family's last style");
         boolean compactNames=true;for(int id=24;id<51;id++)compactNames&=FilmCatalog.reelName(id).length()<=10;check(compactNames&&FilmCatalog.reelName(24).equals("Gold 200"),"Long requested names use readable compact reel titles while the library retains full names");
         check(FilterShelf.matches(24,"柯达")&&FilterShelf.matches(25,"EKTAR")&&FilterShelf.matches(27,"800t")&&FilterShelf.matches(28,"伊尔福")&&FilterShelf.matches(29,"拍立得"),"Classic stocks are searchable by English names and Chinese aliases");
@@ -27,7 +27,7 @@ public final class NewStylesRegression {
         check(FilterShelf.matches(42,"80年代")&&FilterShelf.matches(42,"香港")&&FilterShelf.matches(43,"90年代"),"Era search accepts compact year aliases without requiring spaces");
         check(FilterShelf.matches(50,"特色摄影")&&!FilterShelf.matches(50,"经典胶片"),"Category search matches only its member recipes");
         check(FilterShelf.parse("50,49,28,24",true).equals(Arrays.asList(50,49,28,24))&&FilterShelf.remember(Arrays.asList(23,6),50).get(0)==50,"Favorites and recent history preserve the new maximum style ID");
-        FilmWheelState wheel=new FilmWheelState();wheel.reset(FilmGroups.ids(0),50);wheel.position(50);check(wheel.count()==51&&wheel.selected()==50,"The all-film reel reaches every one of the fifty-one recipes");
+        FilmWheelState wheel=new FilmWheelState();wheel.reset(FilmGroups.ids(0),50);wheel.position(50);check(wheel.count()==FilmCatalog.NAMES.length&&wheel.selected()==50,"The all-film reel reaches every recipe");
         float[] hp5=Film.parameters(recipe(28));check(hp5[6]==0&&hp5[7]<Film.parameters(recipe(23))[7],"HP5 uses neutral medium-contrast monochrome rather than hard black");
         check(Film.parameters(recipe(39))[22]==0&&Film.parameters(recipe(40))[22]>.2f,"High-key and low-key use distinct edge shading as well as tone curves");
         check(Film.parameters(recipe(49))[20]>0&&Film.parameters(recipe(50))[21]>0&&Film.parameters(recipe(45))[23]==32,"Leak, tilt and CCD recipes request their actual spatial/digital operations");

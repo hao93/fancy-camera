@@ -30,14 +30,15 @@ public final class FilmLabelStyle {
         {0xffedf0ed,0xff2e6396,0xffc4dce4},{0xffd6c4aa,0xff754b48,0xfff0e7d7},
         {0xffc7b56e,0xff343a37,0xffece1bc},{0xffd8753f,0xff933630,0xfff1c778},
         {0xffa8bda5,0xff527783,0xffe7dfc6}
-    };
+    ,
+        {0xffdeded6,0xff343b3a,0xffe6a65d},{0xffe7d4c8,0xff685553,0xffb7bdb0},{0xffcbd9d4,0xff264b5e,0xffc6ae79},{0xffead9b8,0xff725841,0xffc8a15b},{0xffdce3e4,0xff435562,0xff9daba1},{0xffe8e8e3,0xff303331,0xffc4aa80},{0xffd5b960,0xff725083,0xfff0dcad},{0xffcbb151,0xff633e76,0xffe7c7a4},{0xfff0c126,0xff175b9b,0xffe9dab1},{0xffebc23e,0xff924435,0xffe4d0a2},{0xff22824b,0xff24284e,0xffe9d9a0},{0xff213d76,0xff171e3a,0xffdfb848},{0xffc5a170,0xff534c41,0xffe0d0a3},{0xff233e59,0xff84436e,0xffc3c6e1},{0xffc6773c,0xff733c2c,0xffe4ba79},{0xff4c477e,0xffb57692,0xffe4c394},{0xffe2adb7,0xff97667e,0xffe5cc91},{0xff274136,0xff152b28,0xffa4b58a},{0xff859ba8,0xff293b4a,0xffd7c5a5},{0xffdad9d2,0xff27282a,0xffa39a81},{0xffe0a08a,0xffa34d45,0xffe8c8ad},{0xffb5a256,0xff873b37,0xffd9ca8a},{0xff793f36,0xff293f35,0xffc4a15b},{0xff31554b,0xff9b6b39,0xffc3c681},{0xffb6a2c4,0xff426075,0xffe0bf7e},{0xff537365,0xff384940,0xffc5aa6a}};
     public final int paper,band,accent,ink,bandInk,pattern,id;
     private FilmLabelStyle(int index){id=index;int[] c=COLORS[index];paper=c[0];band=c[1];accent=c[2];ink=textColor(paper);bandInk=textColor(band);pattern=index%5;}
     public static FilmLabelStyle of(int id){return new FilmLabelStyle(FilmCatalog.safe(id));}
     private static double linear(int v){double x=v/255d;return x<=.04045?x/12.92:Math.pow((x+.055)/1.055,2.4);}
     public static int textColor(int color){double y=.2126*linear(color>>16&255)+.7152*linear(color>>8&255)+.0722*linear(color&255);return (y+.05)/.05>=1.05/(y+.05)?0xff000000:0xffffffff;}
     public static int count(){return COLORS.length;}
-    public int iso(){switch(id){case 0:case 25:return 100;case 3:case 24:return 200;case 1:case 4:case 28:return 400;case 2:return 500;case 5:case 27:return 800;default:return 0;}}
+    public int iso(){switch(id){case 0:case 25:case 62:return 100;case 3:case 24:case 60:return 200;case 1:case 4:case 28:case 57:case 59:case 61:return 400;case 2:return 500;case 5:case 27:case 58:return 800;default:return 0;}}
     public String mark(){switch(id){case 24:return "GOLD 200";case 25:return "EKTAR 100";case 26:return "KODACHROME";case 27:return "800T";case 28:return "HP5 PLUS";case 29:return "INSTANT";default:return FilmCatalog.reelName(id);}}
-    public String type(){return id==4||id==15||id==17||id==20||id==23||id==28?"MONOCHROME":id==10||id==11||id==21||id==26?"REVERSAL":id==2||id==5||id==13||id==14||id==27||id>=30&&id<=34?"CINEMA":"COLOR PROFILE";}
+    public String type(){return id==4||id==15||id==17||id==20||id==23||id==28||id==56||id==70?"MONOCHROME":id==10||id==11||id==21||id==26||id==62?"REVERSAL":id==2||id==5||id==13||id==14||id==27||id>=30&&id<=34||id>=63?"CINEMA":"COLOR PROFILE";}
 }

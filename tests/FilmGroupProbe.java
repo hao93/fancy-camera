@@ -44,6 +44,10 @@ public final class FilmGroupProbe {
         check(h.group==FilmGroups.RETRO,"Reversing at the category boundary responds immediately without accumulated overscroll");
         h=new Harness();h.select(FilmGroups.SPECIAL,true);h.drag(32,0);
         check(h.group==FilmGroups.FAVORITES&&h.changes.equals(Arrays.asList(10)),"A populated favorites group participates in the vertical category reel");
+        Harness added=new Harness();added.select(FilmGroups.RICOH,false);added.drag(32,0);
+        check(added.group==FilmGroups.HASSELBLAD&&added.changes.equals(Arrays.asList(11)),"The production reel emits the stable Hasselblad ID rather than its new visual index");
+        added.drag(32,0);added.wheel.performAccessibilityAction(8192,null);
+        check(added.group==FilmGroups.HASSELBLAD&&added.changes.equals(Arrays.asList(11,4,11))&&added.wheel.description.contains("哈苏"),"Hasselblad and original families remain adjacent through touch and accessible scrolling without favorites");
         h.select(FilmGroups.ALL,false);h.drag(32,500);
         check(h.group==FilmGroups.ALL&&h.changes.size()==1,"The first category has a bounded endpoint and never wraps unexpectedly");
         h=new Harness();h.event(0,32);h.select(FilmGroups.RICOH,true);h.event(2,-64);h.event(1,-64);

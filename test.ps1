@@ -37,6 +37,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Film families or extended atlas regression fai
 if ($LASTEXITCODE -ne 0) { throw 'Spatial film export test compilation failed' }
 & "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $testClasses NewStylesRegression "$projectRoot\build\style-checks"
 if ($LASTEXITCODE -ne 0) { throw 'New recipe classification or spatial export regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\FilmLabelStyle.java" "$projectRoot\tests\HasselbladCinemaRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Expanded film catalog compilation failed' }
+& "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $testClasses HasselbladCinemaRegression "$projectRoot\build\hasselblad-cinema-checks" $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Expanded film catalog/export regression failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\MeteringLock.java" "$projectRoot\tests\CreativeControlsRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Creative controls test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses CreativeControlsRegression

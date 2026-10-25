@@ -13,7 +13,8 @@ final class FilmGroupWheel extends View {
     interface Listener {void selected(int group);}
     Listener listener;
     private final Paint paint=new Paint(3);
-    private int count=FilmGroups.LABELS.length-1,pointer=-1;
+    private int[] groups=FilmGroups.order(false);
+    private int count=groups.length,pointer=-1;
     private float position,downX,downY,lastY;
     private boolean dragging,tapEligible;
     private ValueAnimator animator;
@@ -23,16 +24,16 @@ final class FilmGroupWheel extends View {
     private float pitch(){return dp(24)*Math.max(1,getResources().getDisplayMetrics().scaledDensity/getResources().getDisplayMetrics().density);}
     private int selected(){return Math.round(position);}
     void group(int value,boolean hasFavorites){
-        int nextCount=FilmGroups.LABELS.length-(hasFavorites?0:1);
-        int next=FilmGroups.safe(value);if(next>=nextCount)next=FilmGroups.ALL;
+        int[] nextGroups=FilmGroups.order(hasFavorites);int nextCount=nextGroups.length;
+        int next=0;for(int i=0;i<nextCount;i++)if(nextGroups[i]==FilmGroups.safe(value))next=i;
         // A live detent callback refreshes both reels; retain this finger's fractional offset.
         if(nextCount==count&&next==selected())return;
-        finish();count=nextCount;position=next;describe();invalidate();
+        finish();groups=nextGroups;count=nextCount;position=next;describe();invalidate();
     }
-    private void describe(){setContentDescription("胶片分类滚轮，当前"+FilmGroups.LABELS[selected()]+"，上下滑动切换，点击展开分类");}
+    private void describe(){setContentDescription("胶片分类滚轮，当前"+FilmGroups.LABELS[groups[selected()]]+"，上下滑动切换，点击展开分类");}
     private void update(float value){
         int previous=selected();position=Math.max(0,Math.min(count-1,value));int next=selected();
-        if(next!=previous){describe();performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);if(listener!=null)listener.selected(next);sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);}
+        if(next!=previous){describe();performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);if(listener!=null)listener.selected(groups[next]);sendAccessibilityEvent(android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);}
         invalidate();
     }
     private void cancelAnimation(){if(animator!=null){animator.cancel();animator=null;}}
@@ -74,7 +75,7 @@ final class FilmGroupWheel extends View {
             paint.setColor(current?AMBER:MUTED);paint.setAlpha(isEnabled()?Math.round(255*(1-Math.min(.85f,Math.abs(distance)*.65f))):75);
             paint.setTextSize(12*getResources().getDisplayMetrics().scaledDensity);
             // Fit two-character labels without crossing the adjacent horizontal film reel.
-            String label=FilmGroups.SHORT_LABELS[i];float width=paint.measureText(label);if(width>half*2-dp(4))paint.setTextSize(paint.getTextSize()*(half*2-dp(4))/width);
+            String label=FilmGroups.SHORT_LABELS[groups[i]];float width=paint.measureText(label);if(width>half*2-dp(4))paint.setTextSize(paint.getTextSize()*(half*2-dp(4))/width);
             Paint.FontMetrics fm=paint.getFontMetrics();float baseline=y-(fm.ascent+fm.descent)/2;
             canvas.save();canvas.clipRect(0,y-pitch()/2,getWidth(),y+pitch()/2);canvas.drawText(label,cx,baseline,paint);canvas.restore();
         }
