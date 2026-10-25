@@ -10,8 +10,8 @@ final class LogicalZoomState {
         Tag(long z,long m,float f){zoom=z;meter=m;focal=f;}
     }
     static final class Proof {
-        final long timestamp,epoch; final float focal; final String physical;
-        Proof(long t,long e,float f,String p){timestamp=t;epoch=e;focal=f;physical=p;}
+        final long timestamp,epoch; final float focal; final String physical;final Float appliedEv;final int iso;
+        Proof(long t,long e,float f,String p,Float exposure,int sensitivity){timestamp=t;epoch=e;focal=f;physical=p;appliedEv=exposure!=null&&Float.isFinite(exposure)?exposure:null;iso=Math.max(0,sensitivity);}
     }
     private final Map<String,Integer> bases=new HashMap<>();
     private final LinkedHashMap<Long,Proof> results=new LinkedHashMap<>();
@@ -34,10 +34,13 @@ final class LogicalZoomState {
         return "";
     }
     synchronized int result(Object tag,Long timestamp,String physical,Float ratio){
+        return result(tag,timestamp,physical,ratio,null,0);
+    }
+    synchronized int result(Object tag,Long timestamp,String physical,Float ratio,Float appliedEv,int iso){
         if(!(tag instanceof Tag)||((Tag)tag).zoom!=epoch)return STALE;
         reason=validate(tag,timestamp,physical,ratio);
         if(!reason.isEmpty())return INVALID;
-        results.put(timestamp,new Proof(timestamp,epoch,focal,physical));
+        results.put(timestamp,new Proof(timestamp,epoch,focal,physical,appliedEv,iso));
         while(results.size()>16)results.remove(results.keySet().iterator().next());
         return VALID;
     }

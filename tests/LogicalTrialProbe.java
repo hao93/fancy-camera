@@ -24,6 +24,14 @@ public final class LogicalTrialProbe {
   e=engine();e.logicalPlan=e.chooseForTest();android.os.Build.VERSION.SDK_INT=36;OutputConfiguration output=e.outputForTest();check(output.base==OutputConfiguration.TIMESTAMP_BASE_SENSOR&&!output.readout,"Logical preview/JPEG use sensor exposure timestamps for exact metadata pairing on API 36");
   android.os.Build.VERSION.SDK_INT=30;output=e.outputForTest();check(output.base==-1&&output.readout,"Older Android does not call newer output timestamp APIs");
   android.os.Build.VERSION.SDK_INT=36;e.logicalPlan=null;e.route=new LensPlan.Route("2","4",85,85,false,false);output=e.outputForTest();check(output.physical.equals("4")&&output.base==-1&&output.readout,"Stable physical output bindings and timestamp defaults stay unchanged");
+  int[] all={0,1,2,3};check(FlickerControl.choose(0,all,all)==3&&FlickerControl.choose(1,all,all)==1&&FlickerControl.choose(2,all,all)==2,"Automatic and both mains frequencies map to the advertised Camera2 anti-banding values");
+  check(FlickerControl.choose(1,new int[]{3},all)==3&&FlickerControl.choose(2,all,new int[]{3})==3,"Unsupported fixed frequencies fall back to AUTO only when both sensor and owner advertise it");
+  check(FlickerControl.choose(0,null,all)==-1&&FlickerControl.choose(1,new int[]{0},new int[]{0})==-1,"Missing or unsupported metadata never invents an anti-banding mode");
+  check(FlickerControl.safe(99)==0&&FlickerControl.status(0,-1).contains("不支持"),"Invalid saved frequency falls back to AUTO and unsupported requests are described honestly");
+  e=engine();e.chars.set(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES,all);e.ownerChars.set(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES,all);CaptureRequest.Builder request=new CaptureRequest.Builder();e.antibandingForTest(request);check(request.values.get(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE).equals(3)&&e.physicalMode==3,"Shipping controls explicitly request AUTO on both logical/global and supported physical controls");
+  e.antibanding(1);request=new CaptureRequest.Builder();e.antibandingForTest(request);check(request.values.get(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE).equals(1)&&e.updates==1&&e.closes==0&&e.opens==0,"Selecting 50Hz updates the current request without closing the fast camera session");
+  e.chars.set(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES,new int[]{3});e.antibandingForTest(request);check(request.values.get(CaptureRequest.CONTROL_AE_ANTIBANDING_MODE).equals(3)&&e.antibandingStatus().contains("使用自动"),"Fixed-frequency fallback is reflected in the settings status");
+  e.chars.set(CameraCharacteristics.CONTROL_AE_AVAILABLE_ANTIBANDING_MODES,null);request=new CaptureRequest.Builder();e.antibandingForTest(request);check(request.values.isEmpty()&&e.antibandingStatus().contains("不支持"),"A lens without anti-banding support receives no unsupported capture key");
   return passed;
  }
 }
