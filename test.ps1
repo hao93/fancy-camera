@@ -7,7 +7,7 @@ if (-not $jdkRoot) {
 }
 $testClasses = Join-Path $projectRoot 'build\test-classes'
 New-Item -ItemType Directory -Force $testClasses | Out-Null
-& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\LogicalZoomState.java" "$projectRoot\src\com\silverroom\camera\MeteringState.java" "$projectRoot\src\com\silverroom\camera\MeteringGeometry.java" "$projectRoot\src\com\silverroom\camera\PreviewFraming.java" "$projectRoot\src\com\silverroom\camera\ToolbarConfig.java"
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\LogicalZoomState.java" "$projectRoot\src\com\silverroom\camera\MeteringState.java" "$projectRoot\src\com\silverroom\camera\MeteringGeometry.java" "$projectRoot\src\com\silverroom\camera\PreviewFraming.java" "$projectRoot\src\com\silverroom\camera\ToolbarConfig.java" "$projectRoot\src\com\silverroom\camera\PhotoControls.java" "$projectRoot\src\com\silverroom\camera\PhotoCapabilities.java" "$projectRoot\src\com\silverroom\camera\MeterMath.java" "$projectRoot\src\com\silverroom\camera\NativeReading.java" "$projectRoot\src\com\silverroom\camera\ArchiveSchema.java" "$projectRoot\src\com\silverroom\camera\MeterReferences.java"
 if ($LASTEXITCODE -ne 0) { throw 'Metering helper compilation failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -d $testClasses "$projectRoot\src\com\silverroom\camera\UiSpec.java" "$projectRoot\src\com\silverroom\camera\CameraUiState.java" "$projectRoot\src\com\silverroom\camera\LensPlan.java" "$projectRoot\src\com\silverroom\camera\ZoomScale.java" "$projectRoot\src\com\silverroom\camera\YuvFrames.java" "$projectRoot\src\com\silverroom\camera\CameraHandoff.java" "$projectRoot\src\com\silverroom\camera\YuvGeometry.java" "$projectRoot\src\com\silverroom\camera\CameraShaders.java" "$projectRoot\src\com\silverroom\camera\CaptureOrientation.java" "$projectRoot\src\com\silverroom\camera\FilmGrain.java" "$projectRoot\src\com\silverroom\camera\FilmCatalog.java" "$projectRoot\src\com\silverroom\camera\FilmGroups.java" "$projectRoot\src\com\silverroom\camera\FilterShelf.java" "$projectRoot\tests\OpticalPolicyTest.java" "$projectRoot\tests\PipelineRegression.java" "$projectRoot\tests\PhotoFeaturesRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed' }
@@ -158,6 +158,33 @@ if ($LASTEXITCODE -ne 0) { throw 'Camera/gallery/darkroom hierarchy or capture l
 if ($LASTEXITCODE -ne 0) { throw 'Preview panel test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses PreviewPanelRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Undimmed preview panel or single-instance lifecycle regression failed' }
+
+
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\src\com\silverroom\camera\CaptureQueue.java" "$projectRoot\tests\StudioDomainRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Studio domain compilation failed' }
+& "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $workflowClasspath com.silverroom.camera.StudioDomainRegression
+if ($LASTEXITCODE -ne 0) { throw 'Studio domain regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\tests\NativeControlsRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Native PRO test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath NativeControlsRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Native PRO capability/request regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\tests\StudioNavigationRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Studio navigation test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath StudioNavigationRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Studio navigation/mode restoration regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\tests\StudioMediaRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Studio media test compilation failed' }
+& "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $workflowClasspath com.silverroom.camera.StudioMediaRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Studio byte-preserving IO/print regression failed' }
+$archiveClasses=Join-Path $projectRoot 'build\archive-test-classes'
+New-Item -ItemType Directory -Force $archiveClasses | Out-Null
+$archiveFakes=Get-ChildItem (Join-Path $projectRoot 'tests\archive-fakes') -Filter '*.java' | ForEach-Object { $_.FullName }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $archiveClasses $archiveFakes "$projectRoot\src\com\silverroom\camera\RollRepository.java" "$projectRoot\tests\StudioArchiveRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Archive SQL test compilation failed' }
+$archivePython=Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+if (-not (Test-Path $archivePython)) { $archivePython=(Get-Command python -ErrorAction Stop).Source }
+& "$jdkRoot\bin\java.exe" "-Darchive.python=$archivePython" "-Darchive.bridge=$projectRoot\tests\archive_sqlite_bridge.py" -cp "$archiveClasses;$workflowClasspath" com.silverroom.camera.StudioArchiveRegression "$projectRoot\build"
+if ($LASTEXITCODE -ne 0) { throw 'Production archive SQL regression failed' }
 
 if ($ShaderValidator) {
     & $ShaderValidator -l "$projectRoot\build\shader-tests\camera.vert" "$projectRoot\build\shader-tests\yuv.frag"

@@ -6,13 +6,13 @@ public final class Film {
     public static final String[] NAMES=FilmCatalog.NAMES;
     public static final String[] TAGS=FilmCatalog.TAGS;
     public static class Settings {
-        public int stock=1; public float cyan,magenta,yellow,exposure,grain=.20f,fade=.10f,strength=1;
+        public int stock=1; public float temperature,cyan,magenta,yellow,exposure,grain=.20f,fade=.10f,strength=1;
         public float skin,highlights,red=1,green=1,blue=1,contrast=1,calibrationEv;public boolean adaptiveGrain;public int iso,grainEdge=4096;
-        public Settings copy(){ Settings s=new Settings();s.stock=stock;s.cyan=cyan;s.magenta=magenta;s.yellow=yellow;s.exposure=exposure;s.grain=grain;s.fade=fade;s.strength=strength;s.skin=skin;s.highlights=highlights;s.red=red;s.green=green;s.blue=blue;s.contrast=contrast;s.calibrationEv=calibrationEv;s.adaptiveGrain=adaptiveGrain;s.iso=iso;s.grainEdge=grainEdge;return s; }
+        public Settings copy(){ Settings s=new Settings();s.stock=stock;s.temperature=temperature;s.cyan=cyan;s.magenta=magenta;s.yellow=yellow;s.exposure=exposure;s.grain=grain;s.fade=fade;s.strength=strength;s.skin=skin;s.highlights=highlights;s.red=red;s.green=green;s.blue=blue;s.contrast=contrast;s.calibrationEv=calibrationEv;s.adaptiveGrain=adaptiveGrain;s.iso=iso;s.grainEdge=grainEdge;return s; }
     }
     // Same per-channel tone curve is used in the live GPU preview and JPEG processing.
     public static float[] parameters(Settings s){
-        float[] p=FilmCatalog.parameters(s.stock,s.cyan,s.magenta,s.yellow,s.exposure,s.grain,s.fade);ImageQuality.adjust(p,s.red,s.green,s.blue,s.contrast,s.calibrationEv,s.highlights,s.adaptiveGrain,s.iso);if(s.adaptiveGrain)p[9]*=ImageQuality.sizeScale(s.grainEdge);return p;
+        float[] p=FilmCatalog.parameters(s.stock,s.cyan,s.magenta,s.yellow,s.exposure,s.grain,s.fade);ImageQuality.adjust(p,s.red*(1+s.temperature*.12f),s.green,s.blue*(1-s.temperature*.12f),s.contrast,s.calibrationEv,s.highlights,s.adaptiveGrain,s.iso);if(s.adaptiveGrain)p[9]*=ImageQuality.sizeScale(s.grainEdge);return p;
     }
     public static Bitmap develop(Bitmap input,Settings s){
         int w=input.getWidth(),h=input.getHeight(); Bitmap out=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888);

@@ -8,12 +8,12 @@ import java.util.*;
 public class Canvas {
     public final List<String> texts=new ArrayList<>();public final List<Integer> textAlphas=new ArrayList<>();
     public final List<Float> widths=new ArrayList<>(),textAngles=new ArrayList<>(),pathAngles=new ArrayList<>(),shapeAngles=new ArrayList<>();
-    public final List<float[]> textBounds=new ArrayList<>(),roundRects=new ArrayList<>(),lines=new ArrayList<>();
+    public final List<float[]> textBounds=new ArrayList<>(),roundRects=new ArrayList<>(),lines=new ArrayList<>(),circles=new ArrayList<>();
     private AffineTransform matrix=new AffineTransform();private final Deque<AffineTransform> stack=new ArrayDeque<>();
     private float angle(){return (float)Math.toDegrees(Math.atan2(matrix.getShearY(),matrix.getScaleX()));}
     public void drawRoundRect(float a,float b,float c,float d,float e,float f,Paint p){shapeAngles.add(angle());roundRects.add(new float[]{a,b,c,d});}
     public void drawArc(float a,float b,float c,float d,float start,float sweep,boolean center,Paint p){shapeAngles.add(angle()+start);}
-    public void drawCircle(float x,float y,float r,Paint p){shapeAngles.add(angle());}
+    public void drawCircle(float x,float y,float r,Paint p){shapeAngles.add(angle());circles.add(new float[]{x,y,r});}
     public void drawLine(float a,float b,float c,float d,Paint p){shapeAngles.add(angle());lines.add(new float[]{a,b,c,d});}
     public void save(){stack.push(new AffineTransform(matrix));}
     public void restore(){matrix=stack.pop();}

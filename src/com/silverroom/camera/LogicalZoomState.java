@@ -6,9 +6,10 @@ import java.util.*;
 final class LogicalZoomState {
     static final int STALE=0, VALID=1, INVALID=2;
     static final class Tag {
-        final long zoom,meter,regions; final float focal;
+        final long zoom,meter,regions,controls; final float focal;
         Tag(long z,long m,float f){this(z,m,f,0);}
-        Tag(long z,long m,float f,long region){zoom=z;meter=m;focal=f;regions=region;}
+        Tag(long z,long m,float f,long region){this(z,m,f,region,0);}
+        Tag(long z,long m,float f,long region,long nativeEpoch){zoom=z;meter=m;focal=f;regions=region;controls=nativeEpoch;}
     }
     static final class Proof {
         final long timestamp,epoch; final float focal; final String physical;final Float appliedEv;final int iso;
@@ -22,7 +23,9 @@ final class LogicalZoomState {
     synchronized long begin(float mm){LensPlan.base(mm);epoch++;focal=mm;results.clear();rejected.clear();imageTimestamp=0;reason="";return epoch;}
     synchronized long epoch(){return epoch;}
     synchronized Tag tag(long meter){return tag(meter,0);}
-    synchronized Tag tag(long meter,long regions){return new Tag(epoch,meter,focal,regions);}
+    synchronized Tag tag(long meter,long regions){return tag(meter,regions,0);}
+    synchronized Tag tag(long meter,long regions,long controls){return new Tag(epoch,meter,focal,regions,controls);}
+    static long controls(Object tag){return tag instanceof Tag?((Tag)tag).controls:0;}
     static long regions(Object tag){return tag instanceof Tag?((Tag)tag).regions:0;}
     static long meter(Object tag){return tag instanceof Tag?((Tag)tag).meter:tag instanceof Long?(Long)tag:Long.MIN_VALUE;}
     static float ratio(float mm){LensPlan.base(mm);return mm/23f;}

@@ -16,6 +16,6 @@ public final class GuidesOverlayProbe{
  h=new H();h.drag();h.up();h.e(0,120,150);h.g.fireHeld();h.e(1,120,150);check(h.a.cameraEv==1&&h.a.camera.locks==1&&!h.g.exposureVisible,"A stationary hold after adjustment locks without carrying the old EV hint");
  h=new H();h.drag();h.g.lock(true);check(!h.g.exposureVisible&&!h.g.exposureDragging,"Entering a confirmed focus lock removes exposure-drag feedback");
  h=new H();h.drag();h.up();h.g.onDetachedFromWindow();h.g.advance(5000);check(!h.g.exposureVisible&&h.g.fx<0&&!h.g.deadlines.containsKey(h.g.clearExposure),"Detaching the finder clears the hint and pending callback permanently");
- h=new H();h.drag();h.up();h.g.advance(3000);check(h.g.fx>=0&&!h.drawsEv(),"Persistent manual focus retains its compact point without a floating EV label");return passed;
+ h=new H();h.drag();h.up();h.g.advance(3000);check(h.g.fx<0&&!h.drawsEv(),"Ordinary non-spot focus expires without retaining a box or floating EV label");return passed;
  }
 }

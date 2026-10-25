@@ -16,6 +16,8 @@ public final class MeteringState {
     public synchronized void mode(int mode){Snapshot v=value;int next=safe(mode);if(next!=v.mode)value=new Snapshot(next,v.hasFocus,v.afX,v.afY,v.aeX,v.aeY,v.revision+1);}
     public synchronized void focus(float x,float y){Snapshot v=value;value=new Snapshot(v.mode,true,unit(x),unit(y),v.aeX,v.aeY,v.revision);}
     public synchronized void tap(float x,float y){Snapshot v=value;value=new Snapshot(SPOT,true,unit(x),unit(y),unit(x),unit(y),v.revision+1);}
+    /** A finder tap respects the selected mode; only spot mode moves AE with AF. */
+    public synchronized void focusAndMeter(float x,float y){if(value.mode==SPOT)tap(x,y);else focus(x,y);}
     public synchronized void move(float x,float y){Snapshot v=value;float ex=unit(x),ey=unit(y);if(v.mode!=SPOT||Math.abs(v.aeX-ex)>.00001f||Math.abs(v.aeY-ey)>.00001f)value=new Snapshot(SPOT,v.hasFocus,v.afX,v.afY,ex,ey,v.revision+1);}
     public synchronized void remap(){Snapshot v=value;value=new Snapshot(v.mode,v.hasFocus,v.afX,v.afY,v.aeX,v.aeY,v.revision+1);}
     public synchronized void resetPoints(){Snapshot v=value;value=new Snapshot(v.mode,false,.5f,.5f,.5f,.5f,v.revision+1);}

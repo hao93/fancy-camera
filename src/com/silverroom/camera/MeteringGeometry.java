@@ -16,11 +16,16 @@ public final class MeteringGeometry {
         int r=left+Math.max(l-left+1,Math.min(width,(int)Math.ceil(Math.max(a[0],b[0])*width))),d=top+Math.max(t-top+1,Math.min(height,(int)Math.ceil(Math.max(a[1],b[1])*height)));
         return new int[]{l,t,r-l,d-t};
     }
+    private static float[] marker(float x,float y,float width,float height,float density){
+        // Shared edge inset keeps the animated AF brackets and AE ring together and touchable.
+        float margin=Math.min(36*density,Math.min(width,height)/2);
+        return new float[]{Math.max(margin,Math.min(width-margin,x*width)),Math.max(margin,Math.min(height-margin,y*height))};
+    }
+    public static float[] focusCenter(MeteringState.Snapshot p,float width,float height,float density){return marker(p.afX,p.afY,width,height,density);}
     public static float[] handle(MeteringState.Snapshot p,float width,float height,float density){
-        float margin=Math.min(24*density,Math.min(width,height)/2),x=p.aeX*width,y=p.aeY*height;
-        return new float[]{Math.max(margin,Math.min(width-margin,x+44*density)),Math.max(margin,Math.min(height-margin,y-44*density))};
+        return p.hasFocus&&!p.separated()?focusCenter(p,width,height,density):marker(p.aeX,p.aeY,width,height,density);
     }
     public static boolean hit(MeteringState.Snapshot p,boolean available,float x,float y,float width,float height,float density){
-        if(p==null||p.mode!=MeteringState.SPOT||!available||width<=0||height<=0)return false;float[] h=handle(p,width,height,density);return Math.abs(x-h[0])<=24*density&&Math.abs(y-h[1])<=24*density;
+        if(p==null||!p.hasFocus||p.mode!=MeteringState.SPOT||!available||width<=0||height<=0)return false;float[] h=handle(p,width,height,density);return Math.abs(x-h[0])<=24*density&&Math.abs(y-h[1])<=24*density;
     }
 }
