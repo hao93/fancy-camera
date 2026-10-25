@@ -186,6 +186,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Production film label raster regression failed
 if ($LASTEXITCODE -ne 0) { throw 'Square preview test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $workflowClasspath SquarePreviewRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Square preview measurement/scaling regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\tests\ArchiveUiRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Album UI test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath ArchiveUiRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Album UI geometry/header regression failed' }
 $archiveClasses=Join-Path $projectRoot 'build\archive-test-classes'
 New-Item -ItemType Directory -Force $archiveClasses | Out-Null
 $archiveFakes=Get-ChildItem (Join-Path $projectRoot 'tests\archive-fakes') -Filter '*.java' | ForEach-Object { $_.FullName }
