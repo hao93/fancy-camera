@@ -12,7 +12,7 @@ final class Controls {
     interface Change {void value(float value);}
     /** Borderless camera toolbar: status lives inside each glyph, never in a side badge. */
     static class ToolButton extends View {
-        static final int FLASH=0,GRID=1,TIMER=2,FRAME=3,SETTINGS=4,HISTOGRAM=5,METERING=6,MODULES=7;
+        static final int FLASH=0,GRID=1,TIMER=2,FRAME=3,SETTINGS=4,HISTOGRAM=5,METERING=6,MODULES=7,EXPOSURE=8,MODE=9,ROLL=10;
         final Paint p=new Paint(3);final int kind;boolean active;String badge="";float iconAngle;
         ToolButton(Context c,int type){super(c);kind=type;setClickable(true);setFocusable(true);}
         void state(boolean on,String value,String description){active=on;badge=value;setContentDescription(description);setTooltipText(description);invalidate();}
@@ -29,9 +29,12 @@ final class Controls {
             if(kind==FRAME){float ratio="1:1".equals(badge)?1:"3:2".equals(badge)?1.5f:"16:9".equals(badge)?16f/9:"4:3".equals(badge)?4f/3:"半格".equals(badge)?.75f:"6:7".equals(badge)?7f/6:"6:17".equals(badge)?17f/6:"XPAN".equals(badge)?65f/24:.7f,w=ratio<1?14:ratio==1?18:20,h=w/ratio;c.drawRoundRect(12-w/2,12-h/2,12+w/2,12+h/2,1.5f,1.5f,p);}
             if(kind==HISTOGRAM){Path plot=new Path();plot.moveTo(3,20);plot.lineTo(3,15);plot.lineTo(6,15);plot.lineTo(6,9);plot.lineTo(9,9);plot.lineTo(9,4);plot.lineTo(12,4);plot.lineTo(12,11);plot.lineTo(15,11);plot.lineTo(15,7);plot.lineTo(18,7);plot.lineTo(18,16);plot.lineTo(21,16);plot.lineTo(21,20);c.drawPath(plot,p);c.drawLine(3,20,21,20,p);if(!active)c.drawLine(3,3,21,21,p);}
             if(kind==METERING){c.drawRoundRect(3,4,21,20,2,2,p);if("0".equals(badge)){c.drawLine(8,8,8,16,p);c.drawLine(16,8,16,16,p);c.drawLine(8,12,16,12,p);}else if("1".equals(badge))c.drawRoundRect(8,8,16,16,1,1,p);else{p.setStyle(Paint.Style.FILL);c.drawCircle(12,12,2,p);p.setStyle(Paint.Style.STROKE);}}if(kind==MODULES){for(int row=0;row<3;row++)for(int col=0;col<3;col++)c.drawRoundRect(3+col*7,3+row*7,7+col*7,7+row*7,1,1,p);}if(kind==SETTINGS){Path gear=new Path();for(int i=0;i<32;i++){double a=Math.toRadians(i*11.25);float r=i%4<2?10:8,x=12+(float)Math.cos(a)*r,y=12+(float)Math.sin(a)*r;if(i==0)gear.moveTo(x,y);else gear.lineTo(x,y);}gear.close();c.drawPath(gear,p);c.drawCircle(12,12,3,p);}
+            if(kind==EXPOSURE){c.drawCircle(12,12,9,p);c.drawLine(6,9,12,9,p);c.drawLine(9,6,9,12,p);c.drawLine(13,15,18,15,p);}
+            if(kind==MODE){c.drawRoundRect(3,3,21,21,4,4,p);inside(c,badge,12,12,15,13,scale,sp);}
+            if(kind==ROLL){c.drawRoundRect(6,4,18,20,2,2,p);c.drawLine(9,2,15,2,p);c.drawLine(9,22,15,22,p);c.drawLine(3,8,6,8,p);c.drawLine(3,16,6,16,p);c.drawLine(18,8,21,8,p);c.drawLine(18,16,21,16,p);}
             c.restore();if(isFocused()||isPressed()){p.setStrokeWidth(d*1.5f);c.drawLine(cx-5*d,cy+18*d,cx+5*d,cy+18*d,p);}
         }
-        @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.ImageButton");info.setCheckable(kind!=FRAME&&kind!=SETTINGS&&kind!=METERING);info.setChecked(active);}
+        @Override public void onInitializeAccessibilityNodeInfo(android.view.accessibility.AccessibilityNodeInfo info){super.onInitializeAccessibilityNodeInfo(info);info.setClassName("android.widget.ImageButton");info.setCheckable(kind!=FRAME&&kind!=SETTINGS&&kind!=METERING&&kind!=MODE&&kind!=ROLL&&kind!=EXPOSURE);info.setChecked(active);}
     }
     static class ExposureButton extends ExposureWheel {ExposureButton(Context c){super(c);}}
     static class Dial extends View {

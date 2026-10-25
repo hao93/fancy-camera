@@ -176,6 +176,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Studio navigation/mode restoration regression 
 if ($LASTEXITCODE -ne 0) { throw 'Studio media test compilation failed' }
 & "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $workflowClasspath com.silverroom.camera.StudioMediaRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Studio byte-preserving IO/print regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\tests\StudioShelfRegression.java" "$projectRoot\tests\FilmLabelRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Primary shelf/film label test compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath StudioShelfRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Primary film shelf hierarchy regression failed' }
+& "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $workflowClasspath FilmLabelRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Production film label raster regression failed' }
 $archiveClasses=Join-Path $projectRoot 'build\archive-test-classes'
 New-Item -ItemType Directory -Force $archiveClasses | Out-Null
 $archiveFakes=Get-ChildItem (Join-Path $projectRoot 'tests\archive-fakes') -Filter '*.java' | ForEach-Object { $_.FullName }
