@@ -119,6 +119,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Capture orientation or filter menu regression 
 if ($LASTEXITCODE -ne 0) { throw 'Camera zoom test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses CameraZoomRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Continuous zoom or GPU frame hold regression failed' }
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\LogicalTrialRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Logical trial regression compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses LogicalTrialRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Logical trial eligibility or lifecycle failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\UiRefinementRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'UI refinement test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses UiRefinementRegression $projectRoot

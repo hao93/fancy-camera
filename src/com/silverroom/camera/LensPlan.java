@@ -18,10 +18,11 @@ public final class LensPlan {
         return ids;
     }
     public static final class Route {
-        public final String owner,physical;public final int base;public final float equivalent;public final boolean front,logicalDefault;
-        public Route(String o,String p,int b,float e,boolean f,boolean logical){owner=o;physical=p;base=b;equivalent=e;front=f;logicalDefault=logical;}
-        public String key(){return owner+"/"+physical;}
-        public String source(){return physical!=null?"绑定物理 ID "+physical+" / 逻辑 ID "+owner:logicalDefault?"系统主摄 1× / ID "+owner:"独立相机 ID "+owner;}
+        public final String owner,physical;public final int base;public final float equivalent;public final boolean front,logicalDefault,logicalZoom;
+        public Route(String o,String p,int b,float e,boolean f,boolean logical){this(o,p,b,e,f,logical,false);}
+        public Route(String o,String p,int b,float e,boolean f,boolean logical,boolean zoom){owner=o;physical=p;base=b;equivalent=e;front=f;logicalDefault=logical;logicalZoom=zoom;}
+        public String key(){return (logicalZoom?"zoom/":"")+owner+"/"+physical;}
+        public String source(){return logicalZoom?"逻辑变焦 ID "+owner:physical!=null?"绑定物理 ID "+physical+" / 逻辑 ID "+owner:logicalDefault?"系统主摄 1× / ID "+owner:"独立相机 ID "+owner;}
         public int priority(){return logicalDefault?2:physical==null?0:1;}
     }
     public static Route select(java.util.List<Route> routes,float requested,boolean front,java.util.Set<String> failed){

@@ -50,7 +50,7 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
         frameFormat=FrameFormat.safe(prefs.getInt("frame_format",0));
         rollDir=new File(getFilesDir(),"negatives");rollDir.mkdirs();
         worker.execute(()->{NegativeStore.recover(rollDir);NegativeTrash.recover(rollDir,System.currentTimeMillis());main.post(()->{if(!destroyed){if(page==2)refreshGallery();refreshLatest();}});});
-        camera=new CameraEngine(this,this);camera.rawWanted=prefs.getBoolean("raw",false);camera.quality(prefs.getInt("preview_mode",0));camera.film=liveSettings();build();levels=new LevelController(this);ThemeUi.bars(getWindow());
+        camera=new CameraEngine(this,this);camera.rawWanted=prefs.getBoolean("raw",false);camera.fastWanted=prefs.getBoolean("fast_lens_trial",false);camera.quality(prefs.getInt("preview_mode",0));camera.film=liveSettings();build();levels=new LevelController(this);ThemeUi.bars(getWindow());
         updates=new AppUpdates(this,new AppUpdates.Ui(){public boolean ready(){return updateUiReady();}public void checking(boolean active){if(checkUpdateButton!=null){checkUpdateButton.setText(active?"正在检查…":"检查升级");checkUpdateButton.setEnabled(!active);}}public void beforePrompt(){if(appSettings!=null)appSettings.dismiss();}});
         if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.CAMERA},1);
     }
