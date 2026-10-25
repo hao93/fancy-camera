@@ -23,7 +23,11 @@ final class PreviewHold {
     boolean draw(int w,int h){return draw(w,h,1);}
     boolean draw(int w,int h,float opacity){
         if(!valid||width!=w||height!=h)return false;
-        try{prepare();GLES20.glViewport(0,0,w,h);GLES20.glUseProgram(program);GLES20.glActiveTexture(GLES20.GL_TEXTURE2);GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,texture);GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uFrame"),2);GLES20.glUniform1f(GLES20.glGetUniformLocation(program,"uOpacity"),Math.max(0,Math.min(1,opacity)));if(opacity<1){GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA);}quad.position(0);int a=GLES20.glGetAttribLocation(program,"aP");GLES20.glEnableVertexAttribArray(a);GLES20.glVertexAttribPointer(a,2,GLES20.GL_FLOAT,false,0,quad);GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);return true;}
+        return drawTexture(texture,w,h,opacity);
+    }
+    boolean drawTexture(int source,int w,int h,float opacity){
+        if(source==0||w<=0||h<=0)return false;
+        try{for(int i=0;i<8&&GLES20.glGetError()!=GLES20.GL_NO_ERROR;i++){}prepare();GLES20.glViewport(0,0,w,h);GLES20.glUseProgram(program);GLES20.glActiveTexture(GLES20.GL_TEXTURE2);GLES20.glBindTexture(GLES20.GL_TEXTURE_2D,source);GLES20.glUniform1i(GLES20.glGetUniformLocation(program,"uFrame"),2);GLES20.glUniform1f(GLES20.glGetUniformLocation(program,"uOpacity"),Math.max(0,Math.min(1,opacity)));if(opacity<1){GLES20.glEnable(GLES20.GL_BLEND);GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA,GLES20.GL_ONE_MINUS_SRC_ALPHA);}quad.position(0);int a=GLES20.glGetAttribLocation(program,"aP");GLES20.glEnableVertexAttribArray(a);GLES20.glVertexAttribPointer(a,2,GLES20.GL_FLOAT,false,0,quad);GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);return GLES20.glGetError()==GLES20.GL_NO_ERROR;}
         catch(RuntimeException failure){valid=false;return false;}finally{GLES20.glDisable(GLES20.GL_BLEND);GLES20.glActiveTexture(GLES20.GL_TEXTURE0);}
     }
 }

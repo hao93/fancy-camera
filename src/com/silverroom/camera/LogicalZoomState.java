@@ -15,9 +15,10 @@ final class LogicalZoomState {
     }
     private final Map<String,Integer> bases=new HashMap<>();
     private final LinkedHashMap<Long,Proof> results=new LinkedHashMap<>();
+    private final LinkedHashSet<Long> rejected=new LinkedHashSet<>();
     private long epoch,imageTimestamp; private float focal=23; private String reason="";
-    synchronized void reset(Map<String,Integer> physical){epoch++;bases.clear();bases.putAll(physical);results.clear();imageTimestamp=0;reason="";}
-    synchronized long begin(float mm){LensPlan.base(mm);epoch++;focal=mm;results.clear();imageTimestamp=0;reason="";return epoch;}
+    synchronized void reset(Map<String,Integer> physical){epoch++;bases.clear();bases.putAll(physical);results.clear();rejected.clear();imageTimestamp=0;reason="";}
+    synchronized long begin(float mm){LensPlan.base(mm);epoch++;focal=mm;results.clear();rejected.clear();imageTimestamp=0;reason="";return epoch;}
     synchronized long epoch(){return epoch;}
     synchronized Tag tag(long meter){return new Tag(epoch,meter,focal);}
     static long meter(Object tag){return tag instanceof Tag?((Tag)tag).meter:tag instanceof Long?(Long)tag:Long.MIN_VALUE;}
@@ -37,15 +38,18 @@ final class LogicalZoomState {
         return result(tag,timestamp,physical,ratio,null,0);
     }
     synchronized int result(Object tag,Long timestamp,String physical,Float ratio,Float appliedEv,int iso){
-        if(!(tag instanceof Tag)||((Tag)tag).zoom!=epoch)return STALE;
+        if(!(tag instanceof Tag)||((Tag)tag).zoom!=epoch){reject(timestamp);return STALE;}
         reason=validate(tag,timestamp,physical,ratio);
-        if(!reason.isEmpty())return INVALID;
+        if(!reason.isEmpty()){reject(timestamp);return INVALID;}
+        rejected.remove(timestamp);
         results.put(timestamp,new Proof(timestamp,epoch,focal,physical,appliedEv,iso));
         while(results.size()>16)results.remove(results.keySet().iterator().next());
         return VALID;
     }
     synchronized void image(long timestamp){imageTimestamp=timestamp;}
     synchronized Proof proof(){Proof p=results.get(imageTimestamp);return p!=null&&p.epoch==epoch?p:null;}
+    private void reject(Long value){if(value==null||value<=0)return;results.remove(value);rejected.add(value);while(rejected.size()>16)rejected.remove(rejected.iterator().next());}
+    synchronized boolean rejected(long value){return rejected.contains(value);}
     synchronized String reason(){return reason;}
-    synchronized void clear(){epoch++;results.clear();imageTimestamp=0;}
+    synchronized void clear(){epoch++;results.clear();rejected.clear();imageTimestamp=0;}
 }
