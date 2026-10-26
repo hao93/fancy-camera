@@ -138,6 +138,10 @@ if ($LASTEXITCODE -ne 0) { throw 'UI refinement test compilation failed' }
 & "$jdkRoot\bin\java.exe" -cp $testClasses UiRefinementRegression $projectRoot
 if ($LASTEXITCODE -ne 0) { throw 'Camera presentation, darkroom or confirmed photo gesture regression failed' }
 
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\tests\StillToneRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Preview-to-still tone fixture compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $testClasses StillToneRegression $projectRoot
+if ($LASTEXITCODE -ne 0) { throw 'Preview-to-still tone capability or snapshot regression failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $testClasses -d $testClasses "$projectRoot\src\com\silverroom\camera\ExposureMatch.java" "$projectRoot\tests\ExposurePipelineRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Exposure pipeline test compilation failed' }
 & "$jdkRoot\bin\java.exe" '-Djava.awt.headless=true' -cp $testClasses ExposurePipelineRegression $projectRoot

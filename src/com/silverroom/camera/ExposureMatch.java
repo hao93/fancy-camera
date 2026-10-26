@@ -17,10 +17,11 @@ public final class ExposureMatch {
     }
     private static Correction checked(float target,Float reported,float delta,String method,Integer before,Integer after){return new Correction(target,reported,Math.abs(delta)<.08f?0:delta,method,before,after);}
     public static Correction withFine(Correction match,float fine){float extra=Float.isFinite(fine)?fine:0;return new Correction(match.requested+extra,match.reported,match.amount+extra,match.method+(Math.abs(extra)>.0001f?"+fine":""),match.previewBoost,match.captureBoost);}
+    public static Correction withTone(Correction match){return new Correction(match.requested,match.reported,match.amount,match.method+"+requested-preview-tone",match.previewBoost,match.captureBoost);}
     public static Correction compare(Sample preview,float desired,Float reported,long ns,int iso,float aperture,boolean manual,boolean flash){return compare(preview,desired,reported,ns,iso,aperture,manual,flash,null);}
     public static Correction compare(Sample preview,float desired,Float reported,long ns,int iso,float aperture,boolean manual,boolean flash,Integer digitalBoost){
         Integer before=preview==null?null:preview.boost,after=digitalBoost!=null&&digitalBoost>0?digitalBoost:null;
-        if(!flash&&preview!=null&&preview.ready(desired,preview.received)&&(Math.abs(desired)>.001f||manual)&&ns>0&&iso>0){
+        if(!flash&&preview!=null&&preview.ready(desired,preview.received)&&ns>0&&iso>0){
             double ratio=(double)preview.time*preview.iso/((double)ns*iso);
             if(before!=null&&after!=null)ratio*=before/(double)after;
             if(preview.aperture>0&&aperture>0)ratio*=aperture*aperture/(preview.aperture*preview.aperture);

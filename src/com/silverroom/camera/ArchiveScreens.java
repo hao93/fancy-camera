@@ -25,7 +25,7 @@ final class ArchiveScreens {
         head.addView(title,new LinearLayout.LayoutParams(0,a.dp(ArchiveLayout.heading(font)),1));
         a.add(head,ArchiveUi.icon(a,"⋯","胶卷更多操作",this::tools),48,48);a.add(root,head,-1,-2);
         LinearLayout chrome=a.column();
-        if(rollId==null){LinearLayout tabs=a.row();ArchiveUi.append(a,tabs,ArchiveUi.tab(a,"胶卷",!allPhotos,()->{allPhotos=false;selecting=false;selected.clear();render();}),toolHeight);ArchiveUi.append(a,tabs,ArchiveUi.tab(a,"全部照片",allPhotos,()->{allPhotos=true;selecting=false;selected.clear();render();}),toolHeight);a.add(chrome,tabs,-1,-2);}
+        if(rollId==null)a.add(chrome,ArchiveUi.albumTabs(a,allPhotos,()->{allPhotos=true;selecting=false;selected.clear();render();},()->{allPhotos=false;selecting=false;selected.clear();render();},toolHeight),-1,-2);
         EditText search=new EditText(a);search.setTextSize(14);search.setTextColor(CREAM);search.setHintTextColor(MUTED);search.setHint("搜索胶卷、胶片、器材或备注");search.setSingleLine(true);search.setPadding(a.dp(12),0,a.dp(12),0);search.setBackground(a.bg(PANEL,12,0));search.setText(query);a.add(chrome,search,-1,toolHeight);StudioUi.search(search,text->{query=text;refreshAdapter();});
         LinearLayout commands=a.row();
         ArchiveUi.append(a,commands,ArchiveUi.command(a,rollId==null&&!allPhotos?"新建":selecting?"完成":"选择",rollId==null&&!allPhotos?"新建胶卷":"选择照片或记录",()->{if(rollId==null&&!allPhotos)editRoll(null);else{selecting=!selecting;selected.clear();render();}}),toolHeight);

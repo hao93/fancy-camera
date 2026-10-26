@@ -35,7 +35,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         Shot(byte[] bytes,int rotation,float factor,String source,CaptureOrientation.Snapshot pose,File raw,CaptureInfo actual,String note,long when,int offset,long clientTicket,ExposureMatch.Correction match,float display){displayEv=display;exposure=match;ticket=clientTicket;capturedAt=when;offsetMinutes=offset;jpeg=bytes;clockwise=rotation;crop=factor;lens=source;orientation=pose;dng=raw;info=actual;rawNote=note;}
     }
     private static final class ShotSpec {
-        final PhotoControls controls;final float crop;final int rotation;final String description;final CaptureOrientation.Snapshot orientation;final long capturedAt,ticket;final int offsetMinutes;final float ev,fine,displayEv;final ExposureMatch.Sample preview;boolean manualExposure;
+        final PhotoControls controls;final float crop;final int rotation;final String description;final CaptureOrientation.Snapshot orientation;final long capturedAt,ticket;final int offsetMinutes;final float ev,fine,displayEv;final ExposureMatch.Sample preview;boolean manualExposure,toneApplied;StillTone.Snapshot tone;
         ShotSpec(float c,CaptureOrientation.Snapshot pose,String d,long clientTicket,float requestedEv,ExposureMatch.Sample sample,float adjustment,float display){this(c,pose,d,clientTicket,requestedEv,sample,adjustment,display,PhotoControls.automatic());}
         ShotSpec(float c,CaptureOrientation.Snapshot pose,String d,long clientTicket,float requestedEv,ExposureMatch.Sample sample,float adjustment,float display,PhotoControls nativeControls){controls=nativeControls;fine=adjustment;displayEv=display;ev=requestedEv;preview=sample;ticket=clientTicket;capturedAt=System.currentTimeMillis();offsetMinutes=java.util.TimeZone.getDefault().getOffset(capturedAt)/60000;crop=c;rotation=pose.rotation;orientation=pose;description=d;}
     }
@@ -73,7 +73,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private volatile MeterPoint pendingMeterPoint;private final java.util.concurrent.atomic.AtomicBoolean pointQueued=new java.util.concurrent.atomic.AtomicBoolean();
     private final Runnable applyMeterPoint=this::applyMeterPoint;
     private final MeteringLock meter=new MeteringLock();private long focusEpoch;private float lockX=.5f,lockY=.5f;private Float lockDistance;private Long lockExposure,lockDuration;private Integer lockIso;
-    private int generation,flashMode;private volatile int sessionGeneration;private float ev;private volatile ExposureScale.Plan exposurePlan=ExposureScale.plan(0,ExposureLimits.NONE);private volatile Float previewAppliedEv;private long exposureTimestamp;private ExposureMatch.Sample previewExposure;private int exposureFrames;private Runnable pendingStill;private ShotSpec pendingShot;
+    private int generation,flashMode;private volatile int sessionGeneration;private float ev;private volatile ExposureScale.Plan exposurePlan=ExposureScale.plan(0,ExposureLimits.NONE);private volatile Float previewAppliedEv;private long exposureTimestamp;private ExposureMatch.Sample previewExposure;private int exposureFrames;private StillTone.Snapshot previewTone;private final Set<String> toneRejected=new HashSet<>();private Runnable pendingStill;private ShotSpec pendingShot;
     private volatile boolean frame;private volatile int sensorOrientation=90;private volatile Size previewSize=new Size(1440,1080);
     private volatile int width=1,height=1;private int texId,program,yuvProgram;private final int[] yuvTextures=new int[2];private ByteBuffer yuvUpload;private final float[] st=new float[16],model=new float[16];
     private volatile int maxTextureEdge=2048;private YuvFrame uploadedFrame;
@@ -486,7 +486,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
             if(s!=session||route==null||stillOnly)return;
             if(logicalPlan!=null&&!acceptLogicalResult(req,result))return;
             if(route.logicalDefault&&!defaultMainVerified(result)){failRoute("系统默认 1× 无法确认主摄原生输出，拒绝作为光学主摄使用");return;}
-            switchTrace.mark("首个取景结果",SystemClock.elapsedRealtime());previewResultSeen=true;CaptureResult actual=physicalResult(result);recordNative(req,actual);recordExposure(req,actual);if(actual!=null){Integer iso=actual.get(CaptureResult.SENSOR_SENSITIVITY);lastIso=iso==null?0:iso;}markPreviewReady();lockResult(req,result);
+            switchTrace.mark("首个取景结果",SystemClock.elapsedRealtime());previewResultSeen=true;CaptureResult actual=physicalResult(result);recordNative(req,actual);ExposureMatch.Sample previous=previewExposure;recordExposure(req,actual);if(previewExposure!=previous)previewTone=StillTone.read(actual,previewExposure);if(actual!=null){Integer iso=actual.get(CaptureResult.SENSOR_SENSITIVITY);lastIso=iso==null?0:iso;}markPreviewReady();lockResult(req,result);
             if(SystemClock.elapsedRealtime()-lastReport>2500){lastReport=SystemClock.elapsedRealtime();String verified="";
                 if(route.physical!=null&&result.getPhysicalCameraResults().containsKey(route.physical))verified=" · 物理结果已返回";
                 listener.status(description()+verified);
@@ -514,13 +514,13 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private void awaitExposureSample(long ticket,int orientation,int epoch,float desired,long deadline,float fine,float display){
         if(epoch!=generation||!active||!captureInFlight)return;
         ExposureMatch.Sample sample=previewExposure;boolean ready=sample!=null&&previewRegionRevision==areas.snapshot().revision&&exposureFrames>=2&&sample.ready(desired,SystemClock.elapsedRealtime());
-        if(!photoControls.manual&&flashMode==0&&(Math.abs(desired)>.001f||meteringNeedsWait())&&!ready&&SystemClock.elapsedRealtime()<deadline){handler.postDelayed(()->awaitExposureSample(ticket,orientation,epoch,desired,deadline,fine,display),30);return;}
+        if(!photoControls.manual&&flashMode==0&&(Math.abs(desired)>.001f||meteringNeedsWait()||sample!=null&&sample.time>0&&sample.iso>0)&&!ready&&SystemClock.elapsedRealtime()<deadline){handler.postDelayed(()->awaitExposureSample(ticket,orientation,epoch,desired,deadline,fine,display),30);return;}
         if(meteringNeedsWait()&&!ready)event("当前测光区域未确认稳定，按自动曝光继续拍摄");
         pendingShot=new ShotSpec(previewCrop,new CaptureOrientation.Snapshot(sensorOrientation,orientation,front),description(),ticket,photoControls.manual?0:desired,photoControls.manual?null:ready?sample:null,photoControls.manual?0:fine,photoControls.manual?0:display,photoControls);
         beginShot();
     }
     private void beginShot(){
-        final ShotSpec spec=pendingShot;final int shotGeneration=generation;final Route chosen=route;final float shotMm=requestedMm;
+        final ShotSpec spec=pendingShot;spec.tone=StillTone.match(previewTone,spec.preview);final int shotGeneration=generation;final Route chosen=route;final float shotMm=requestedMm;
         if(logicalPlan!=null){logicalJpeg=new LogicalJpegGate();logicalJpegResult=null;final LogicalJpegGate gate=logicalJpeg;handler.postDelayed(()->{if(logicalJpeg==gate&&pendingShot==spec&&captureInFlight)logicalFailed("JPEG镜头验证超时");},Math.max(5000,spec.controls.manual?spec.controls.exposureNs/1000000+5000:5000));}
         rawCapture=new RawCapture(activity.getCacheDir(),chars,encoder,handler,spec.rotation,rawReader!=null,rawWanted?rawState:"",(bytes,dng,actual,note)->{if(shotGeneration!=generation||pendingShot!=spec){if(dng!=null)dng.delete();return;}pendingShot=null;rawCapture=null;logicalJpeg=null;logicalJpegResult=null;captureInFlight=false;CaptureInfo info=captureInfo(actual,shotMm,chosen);if(spec.controls.manual&&!spec.controls.matches(info.iso,info.exposure)){if(dng!=null)dng.delete();photoControls=PhotoControls.automatic();nativeEpoch++;listener.error("当前镜头未确认手动 ISO / 快门，本次照片未保存，已恢复 AUTO");update();if(splitPreview&&active)createSession(false);return;}ExposureMatch.Correction match=exposureMatch(spec,actual);if(dng!=null)rawState="已实际输出DNG";else if(rawWanted&&!note.isEmpty())rawState=note;listener.picture(new Shot(bytes,spec.rotation,spec.crop,spec.description,spec.orientation,dng,info,note,spec.capturedAt,spec.offsetMinutes,spec.ticket,match,spec.displayEv));if(applyModeChanges())return;if(splitPreview&&active){clearMetering();createSession(false);}});
         event("快门姿态：手机 "+pendingShot.orientation.device+"° / 传感器 "+sensorOrientation+"° / 成片像素旋转 "+pendingShot.rotation+"°");
@@ -542,7 +542,7 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     }
     private void recordExposure(CaptureRequest req,CaptureResult actual){
         if(LogicalZoomState.regions(req.getTag())!=areas.snapshot().revision||LogicalZoomState.meter(req.getTag())!=meter.epoch())return;
-        if(actual!=null){Float applied=reportedEv(actual);Long timestamp=actual.get(CaptureResult.SENSOR_TIMESTAMP);if(applied!=null&&(timestamp==null||timestamp>=exposureTimestamp)){previewAppliedEv=applied;if(timestamp!=null)exposureTimestamp=timestamp;view.requestRender();}}
+        if(actual!=null){Float applied=reportedEv(actual);Long timestamp=actual.get(CaptureResult.SENSOR_TIMESTAMP);if(timestamp!=null&&timestamp<exposureTimestamp)return;if(applied!=null&&(timestamp==null||timestamp>=exposureTimestamp)){previewAppliedEv=applied;if(timestamp!=null)exposureTimestamp=timestamp;view.requestRender();}}
         Integer requested=req.get(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION);if(actual==null||requested==null||requested!=exposureLimits.ticks(ev)||LogicalZoomState.regions(req.getTag())!=areas.snapshot().revision||!regionResultMatches(actual))return;
         ExposureMatch.Sample sample=new ExposureMatch.Sample(ev,reportedEv(actual),actual.get(CaptureResult.SENSOR_EXPOSURE_TIME),actual.get(CaptureResult.SENSOR_SENSITIVITY),actual.get(CaptureResult.SENSOR_FRAME_DURATION),actual.get(CaptureResult.LENS_APERTURE),actual.get(CaptureResult.CONTROL_AE_STATE),SystemClock.elapsedRealtime(),actual.get(CaptureResult.CONTROL_POST_RAW_SENSITIVITY_BOOST));
         previewExposure=sample;previewRegionRevision=areas.snapshot().revision;exposureFrames=sample.ready(ev,SystemClock.elapsedRealtime())?exposureFrames+1:0;if(exposureFrames>=2)settledRegionRevision=previewRegionRevision;
@@ -568,7 +568,9 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
         if(spec==null)return;setBoth(b,CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION,exposureLimits.ticks(spec.ev));
         spec.manualExposure=stillOnly&&meter.locked();if(spec.manualExposure){applyPostRawBoost(b,spec.preview);return;}
         if(flashMode!=0||spec.preview==null)return;
-        if(splitPreview&&canTransferExposure(spec.preview)){
+        // AE_LOCK on a different still template is not an exact sensor snapshot.
+        // Prefer the already verified time/ISO/boost on concurrent routes as well.
+        if(canTransferExposure(spec.preview)){
             setBoth(b,CaptureRequest.CONTROL_AE_MODE,CaptureRequest.CONTROL_AE_MODE_OFF);setBoth(b,CaptureRequest.CONTROL_AE_LOCK,false);
             setBoth(b,CaptureRequest.SENSOR_EXPOSURE_TIME,spec.preview.time);setBoth(b,CaptureRequest.SENSOR_SENSITIVITY,spec.preview.iso);applyPostRawBoost(b,spec.preview);
             Long max=chars.get(CameraCharacteristics.SENSOR_INFO_MAX_FRAME_DURATION);long frame=Math.max(spec.preview.time,spec.preview.duration);
@@ -579,15 +581,21 @@ public final class CameraEngine implements GLSurfaceView.Renderer {
     private ExposureMatch.Correction exposureMatch(ShotSpec spec,CaptureResult result){
         Long time=result==null?null:result.get(CaptureResult.SENSOR_EXPOSURE_TIME);Integer iso=result==null?null:result.get(CaptureResult.SENSOR_SENSITIVITY);Float aperture=result==null?null:result.get(CaptureResult.LENS_APERTURE);
         ExposureMatch.Correction match=ExposureMatch.compare(spec.preview,spec.ev,reportedEv(result),time==null?0:time,iso==null?0:iso,aperture==null?0:aperture,spec.manualExposure,flashMode!=0,result==null?null:result.get(CaptureResult.CONTROL_POST_RAW_SENSITIVITY_BOOST));
-        match=ExposureMatch.withFine(match,spec.fine);event("曝光核对：刻度 "+spec.displayEv+" / 请求 EV "+spec.ev+" / 实际返回 "+match.reported+" / 成片补偿 "+match.amount+" / "+match.method);return match;
+        match=ExposureMatch.withFine(match,spec.fine);if(spec.toneApplied)match=ExposureMatch.withTone(match);event("曝光核对：刻度 "+spec.displayEv+" / 请求 EV "+spec.ev+" / 实际返回 "+match.reported+" / 成片补偿 "+match.amount+" / "+match.method);return match;
+    }
+    private CaptureRequest.Builder stillBuilder(ShotSpec spec,boolean reuseTone)throws CameraAccessException{
+        CaptureRequest.Builder shot=builder(CameraDevice.TEMPLATE_STILL_CAPTURE);shot.addTarget(reader.getSurface());if(rawReader!=null)shot.addTarget(rawReader.getSurface());controls(shot);applyStillExposure(shot,spec);
+        spec.toneApplied=reuseTone&&flashMode==0&&StillTone.apply(shot,spec.tone,ownerChars,chars,route.physical);
+        if(reader.getImageFormat()==ImageFormat.JPEG){shot.set(CaptureRequest.JPEG_ORIENTATION,0);shot.set(CaptureRequest.JPEG_QUALITY,(byte)97);}return shot;
     }
     private void captureRequest(){
         // Both JPEG and YUV are normalized once in the pixel pipeline; ask the
         // hardware JPEG encoder for its native orientation to avoid double rotation.
-        try{CaptureRequest.Builder shot=builder(CameraDevice.TEMPLATE_STILL_CAPTURE);shot.addTarget(reader.getSurface());if(rawReader!=null)shot.addTarget(rawReader.getSurface());controls(shot);applyStillExposure(shot,pendingShot);if(reader.getImageFormat()==ImageFormat.JPEG){shot.set(CaptureRequest.JPEG_ORIENTATION,0);shot.set(CaptureRequest.JPEG_QUALITY,(byte)97);}
+        final ShotSpec expected=pendingShot;final RawCapture bundle=rawCapture;if(expected==null||bundle==null)return;
+        try{CaptureRequest.Builder shot;try{shot=stillBuilder(expected,!toneRejected.contains(route.key()));}catch(IllegalArgumentException e){toneRejected.add(route.key());expected.toneApplied=false;event("预览色调请求未接受，保留原拍摄路径："+e.getMessage());shot=stillBuilder(expected,false);}
             final int token=generation,sessionToken=sessionGeneration;session.capture(shot.build(),new CameraCaptureSession.CaptureCallback(){
-                @Override public void onCaptureCompleted(CameraCaptureSession s,CaptureRequest r,TotalCaptureResult result){if(token!=generation||sessionToken!=sessionGeneration||rawCapture==null)return;if(logicalPlan!=null){String error=logicalZoom.validate(r.getTag(),result.get(CaptureResult.SENSOR_TIMESTAMP),result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID),result.get(CaptureResult.CONTROL_ZOOM_RATIO));if(!error.isEmpty()){logicalFailed("拍照："+error);return;}if(logicalJpeg==null){logicalFailed("缺少JPEG核验事务");return;}logicalJpegResult=result;Long timestamp=result.get(CaptureResult.SENSOR_TIMESTAMP);logicalJpeg.result(timestamp==null?0:timestamp,true);finishLogicalJpeg();}else{CaptureResult actual=physicalResult(result);rawCapture.result(actual);}}
-                @Override public void onCaptureFailed(CameraCaptureSession s,CaptureRequest r,CaptureFailure f){if(token!=generation||sessionToken!=sessionGeneration)return;recover("拍摄请求失败 reason="+f.getReason());}
+                @Override public void onCaptureCompleted(CameraCaptureSession s,CaptureRequest r,TotalCaptureResult result){if(token!=generation||sessionToken!=sessionGeneration||rawCapture!=bundle||pendingShot!=expected)return;if(logicalPlan!=null){String error=logicalZoom.validate(r.getTag(),result.get(CaptureResult.SENSOR_TIMESTAMP),result.get(CaptureResult.LOGICAL_MULTI_CAMERA_ACTIVE_PHYSICAL_ID),result.get(CaptureResult.CONTROL_ZOOM_RATIO));if(!error.isEmpty()){logicalFailed("拍照："+error);return;}if(logicalJpeg==null){logicalFailed("缺少JPEG核验事务");return;}logicalJpegResult=result;Long timestamp=result.get(CaptureResult.SENSOR_TIMESTAMP);logicalJpeg.result(timestamp==null?0:timestamp,true);finishLogicalJpeg();}else{CaptureResult actual=physicalResult(result);rawCapture.result(actual);}}
+                @Override public void onCaptureFailed(CameraCaptureSession s,CaptureRequest r,CaptureFailure f){if(token!=generation||sessionToken!=sessionGeneration||rawCapture!=bundle||pendingShot!=expected)return;if(expected.toneApplied)toneRejected.add(route.key());recover("拍摄请求失败 reason="+f.getReason());}
             },handler);
         }catch(Exception e){recover("拍摄请求异常："+e.getMessage());}
     }
