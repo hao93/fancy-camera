@@ -68,6 +68,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Production theme window cold-start or attachme
 if (-not $JsonJar) { $JsonJar=Join-Path (Split-Path $projectRoot -Parent) 'toolchain\json\json-20240303.jar' }
 if (-not (Test-Path -LiteralPath $JsonJar)) { throw 'Host JSON tests need JSON-Java 20240303; pass -JsonJar. This dependency is not part of the APK.' }
 $workflowClasspath="$testClasses;$JsonJar"
+& "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\src\com\silverroom\camera\PhotoStyle.java" "$projectRoot\tests\PhotoStyleRegression.java"
+if ($LASTEXITCODE -ne 0) { throw 'Photo style provenance compilation failed' }
+& "$jdkRoot\bin\java.exe" -cp $workflowClasspath com.silverroom.camera.PhotoStyleRegression
+if ($LASTEXITCODE -ne 0) { throw 'Saved photo style provenance regression failed' }
 & "$jdkRoot\bin\javac.exe" --release 8 -encoding UTF-8 -cp $workflowClasspath -d $testClasses "$projectRoot\src\com\silverroom\camera\SettingsCodec.java" "$projectRoot\src\com\silverroom\camera\RecipeStore.java" "$projectRoot\src\com\silverroom\camera\CaptureInfo.java" "$projectRoot\src\com\silverroom\camera\RawPolicy.java" "$projectRoot\src\com\silverroom\camera\NegativeStore.java" "$projectRoot\src\com\silverroom\camera\NegativeTrash.java" "$projectRoot\tests\ExpansionRegression.java"
 if ($LASTEXITCODE -ne 0) { throw 'Workflow regression compilation failed' }
 New-Item -ItemType Directory -Force (Join-Path $projectRoot 'build\expansion-tests') | Out-Null

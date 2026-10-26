@@ -83,7 +83,7 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
         root=column();root.setBackgroundColor(INK);root.setPadding(dp(12),dp(4),dp(12),0);root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets i=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());v.setPadding(dp(12)+i.left,dp(4)+i.top,dp(12)+i.right,i.bottom);return insets;});setContentView(root);
         body=column();root.addView(body,new LinearLayout.LayoutParams(-1,0,1));buildCamera();buildDarkroom();galleryPage=column();galleryPage.setVisibility(View.GONE);body.addView(galleryPage,new LinearLayout.LayoutParams(-1,-1));galleryPage.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(page==2&&r>l&&r-l!=or-ol)main.post(this::refreshGallery);});
     }
-    View quickPreview(){FrameLayout quick=new FrameLayout(this);quick.setContentDescription("底片图库，点击查看已拍照片、暗房及导出");quick.setFocusable(true);quick.setClickable(true);quick.setOnClickListener(v->openGallery());lastPhoto=new QuickPreview(this);lastPhoto.setBackground(bg(PANEL,8,tone(AppTheme.BORDER)));lastPhoto.setClipToOutline(true);quick.addView(lastPhoto,new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.CENTER));return quick;}
+    View quickPreview(){FrameLayout quick=new FrameLayout(this);quick.setContentDescription("全部照片，点击查看已拍照片、暗房及导出");quick.setFocusable(true);quick.setClickable(true);quick.setOnClickListener(v->openGallery());lastPhoto=new QuickPreview(this);lastPhoto.setBackground(bg(PANEL,8,tone(AppTheme.BORDER)));lastPhoto.setClipToOutline(true);quick.addView(lastPhoto,new FrameLayout.LayoutParams(dp(48),dp(48),Gravity.CENTER));return quick;}
     void buildCamera(){
         cameraPage=column();body.addView(cameraPage,new LinearLayout.LayoutParams(-1,-1));
         LinearLayout tools=row();topTools=tools;flashButton=new Controls.ToolButton(this,Controls.ToolButton.FLASH);flashButton.setOnClickListener(v->{if(!busy){flash=(flash+1)%3;refreshTools();camera.flash(flash);v.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);}});addTool(tools,flashButton,false);
@@ -270,7 +270,7 @@ public final class MainActivity extends Activity implements CameraEngine.Listene
         cameraPage.setVisibility(index==0?View.VISIBLE:View.GONE);darkPage.setVisibility(index==1?View.VISIBLE:View.GONE);galleryPage.setVisibility(index==2?View.VISIBLE:View.GONE);
         if(index==0&&resumed){cameraHint.once("hint_camera_v230");controlRotation.turn(camera.deviceOrientation(),false);camera.histogram(histogram);camera.resume();}if(index==1){refreshRoomControls();renderEdit();}if(index==2)refreshGallery();if(levels!=null)levels.update();
     }
-    void openGallery(){if(busy||exporting){toast("请等待本次拍摄或保存完成");return;}choosingRoomSource=false;if(studio!=null){studio.archive.openRolls();return;}switchPage(2);}
+    void openGallery(){if(busy||exporting){toast("请等待本次拍摄或保存完成");return;}choosingRoomSource=false;if(studio!=null){studio.archive.openAllPhotos();return;}switchPage(2);}
     void openDarkroom(){
         if(busy||exporting)return;choosingRoomSource=false;List<String> selection=selectedNegatives.snapshot();
         if(selectingNegatives&&selection.size()>1){toast("暗房每次处理一张；多选底片可直接导出");return;}
